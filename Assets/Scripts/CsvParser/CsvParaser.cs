@@ -4,13 +4,13 @@ using UnityEngine;
 
 public static class CsvParaser
 {
-    public const string cadData = "CadData/옥천학원수정";
+    public const string mapData = "MapData/옥천학원수정";
 
-    public static List<MapData> GetCadData(string filename)
+    public static List<MapData> GetMapData(string filename)
     {
         if (string.IsNullOrWhiteSpace(filename))
         {
-            filename = cadData;
+            filename = mapData;
         }
         else
         {
@@ -19,9 +19,9 @@ public static class CsvParaser
                 filename = filename.Substring(0, filename.Length - 4);
             }
 
-            if (!filename.Contains("/") && !filename.StartsWith("CadData"))
+            if (!filename.Contains("/") && !filename.StartsWith("MapData"))
             {
-                filename = $"CadData/{filename}";
+                filename = $"MapData/{filename}";
             }
         }
 
