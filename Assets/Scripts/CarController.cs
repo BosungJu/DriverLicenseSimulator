@@ -116,7 +116,7 @@ public class CarController : MonoBehaviour
 
         if(isBraking)
         {
-            rb.velocity *= 0.98f;
+            rb.linearVelocity *= 0.98f;
         }
     }
 
