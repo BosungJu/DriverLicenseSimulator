@@ -4,37 +4,37 @@ using UnityEngine;
 
 public class CabShake : MonoBehaviour
 {
-    public Rigidbody carRb; //CarÀÇ Rigidbody ¿¬°á
+    public Rigidbody carRb; //Carï¿½ï¿½ Rigidbody ï¿½ï¿½ï¿½ï¿½
 
-    [Header("Èçµé¸² Å©±â (°¢µµ)")]
-    public float idleShake = 0.15f; //°øÈ¸Àü(Á¤Áö) ½Ã Èçµé¸²
+    [Header("ï¿½ï¿½é¸² Å©ï¿½ï¿½ (ï¿½ï¿½ï¿½ï¿½)")]
+    public float idleShake = 0.15f; //ï¿½ï¿½È¸ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½) ï¿½ï¿½ ï¿½ï¿½é¸²
 
-    public float roadShake = 0.5f; //°í¼Ó¿¡¼­ Ãß°¡µÇ´Â ³ë¸é Áøµ¿
+    public float roadShake = 0.5f; //ï¿½ï¿½ï¿½Ó¿ï¿½ï¿½ï¿½ ï¿½ß°ï¿½ï¿½Ç´ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 
-    public float shakeSpeed = 15f; //Èçµé¸² ºü¸£±â
+    public float shakeSpeed = 15f; //ï¿½ï¿½é¸² ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     Quaternion baseRot;
 
     // Start is called before the first frame update
     void Start()
     {
-        baseRot = transform.localRotation; //¿ø·¡ ¹æÇâ ±â¾ï (0,0,0)
+        baseRot = transform.localRotation; //ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ (0,0,0)
     }
 
     // Update is called once per frame
     void Update()
     {
-        float speedKmh = carRb.velocity.magnitude * 3.6f;
+        float speedKmh = carRb.linearVelocity.magnitude * 3.6f;
 
-        //Á¤Áö ¶© idleShake, ºü¸¦¼ö·Ï roadShake¸¸Å­ ´õ Èçµé¸®°Ô
+        //ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ idleShake, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ roadShakeï¿½ï¿½Å­ ï¿½ï¿½ ï¿½ï¿½é¸®ï¿½ï¿½
         float shakeAmount = idleShake + (speedKmh / 100f) * roadShake;
 
-        //Perlin ³ëÀÌÁî = ºÎµå·¯¿î ·£´ý °ª (-1 ~ 1)
+        //Perlin ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ = ï¿½Îµå·¯ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ (-1 ~ 1)
         float t = Time.time * shakeSpeed;
         float nx = (Mathf.PerlinNoise(t, 0f) - 0.5f) * 2f;
         float ny = (Mathf.PerlinNoise(0f, t) - 0.5f) * 2f;
 
-        //¿ø·¡ ¹æÇâ¿¡¼­ ¾ÆÁÖ »ìÂ¦ Èçµé±â
+        //ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½â¿¡ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Â¦ ï¿½ï¿½ï¿½ï¿½
         transform.localRotation = baseRot * Quaternion.Euler(ny * shakeAmount, 0f, nx * shakeAmount);
     }
 }

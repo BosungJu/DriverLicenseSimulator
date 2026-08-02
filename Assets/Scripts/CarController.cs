@@ -18,22 +18,22 @@ public class CarController : MonoBehaviour
     [Header("Car Settings")]
     public float motorForce = 1500f;
     public float brakeForce = 12000f;
-    public float accelRate = 1200f; //ÃÊ´ç ÅäÅ© »ó½Â·® (¿¢¼¿ ¹âÀ» ¶§)
-    public float releaseRate = 2500f; //ÃÊ´ç ÅäÅ© ÇÏ¶ô·® (¿¢¼¿ ¶¿ ¶§)
-    public float maxSpeedKmh = 110f; // 1Åæ Æ÷ÅÍ ±âÁØ ÃÖ°í¼Óµµ Á¦ÇÑ
+    public float accelRate = 1200f; //ï¿½Ê´ï¿½ ï¿½ï¿½Å© ï¿½ï¿½Â·ï¿½ (ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½)
+    public float releaseRate = 2500f; //ï¿½Ê´ï¿½ ï¿½ï¿½Å© ï¿½Ï¶ï¿½ï¿½ï¿½ (ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½)
+    public float maxSpeedKmh = 110f; // 1ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ö°ï¿½ï¿½Óµï¿½ ï¿½ï¿½ï¿½ï¿½
 
     [Header("Steering Settings")]
-    public float maxSteerAngle = 32f; //Àú¼Ó¿¡¼­ÀÇ ÃÖ´ë Á¶Çâ°¢
-    public float minSteerAngle = 6f; //°í¼Ó¿¡¼­ÀÇ ÃÖ´ë Á¶Çâ°¢
-    public float steerSpeed = 80f; //ÇÚµé °¨±â´Â ¼Óµµ (ÃÊ´ç °¢µµ)
-    public float fullSteerSpeedThreshold = 22f; //ÀÌ ¼Óµµ(m/s) ÀÌ»óÀÌ¸é ÃÖ¼Ò°¢ Àû¿ë
+    public float maxSteerAngle = 32f; //ï¿½ï¿½ï¿½Ó¿ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½â°¢
+    public float minSteerAngle = 6f; //ï¿½ï¿½ï¿½Ó¿ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½â°¢
+    public float steerSpeed = 80f; //ï¿½Úµï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Óµï¿½ (ï¿½Ê´ï¿½ ï¿½ï¿½ï¿½ï¿½)
+    public float fullSteerSpeedThreshold = 22f; //ï¿½ï¿½ ï¿½Óµï¿½(m/s) ï¿½Ì»ï¿½ï¿½Ì¸ï¿½ ï¿½Ö¼Ò°ï¿½ ï¿½ï¿½ï¿½ï¿½
 
     float horizontalInput;
     float verticalInput;
     bool isBraking;
 
-    float currentSteerAngle; //Áö±Ý ½ÇÁ¦ Àû¿ë ÁßÀÎ °¢µµ
-    float currentMotor; //½ÇÁ¦ °É·ÁÀÖ´Â ¸ðÅÍ ÅäÅ©
+    float currentSteerAngle; //ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
+    float currentMotor; //ï¿½ï¿½ï¿½ï¿½ ï¿½É·ï¿½ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Å©
 
     Rigidbody rb;
 
@@ -70,12 +70,12 @@ public class CarController : MonoBehaviour
     {
         float targetMotor = verticalInput * motorForce;
 
-        //ÃÖ°í ¼Óµµ Á¦ÇÑ : 110 km ³ÑÀ¸¸é °¡¼Ó X
-        float speedKmh = rb.velocity.magnitude * 3.6f;
+        //ï¿½Ö°ï¿½ ï¿½Óµï¿½ ï¿½ï¿½ï¿½ï¿½ : 110 km ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ X
+        float speedKmh = rb.linearVelocity.magnitude * 3.6f;
         if (speedKmh > maxSpeedKmh)
             targetMotor = 0f;
 
-        //¹â´Â ÁßÀÌ¸é accelRate(»ó½Â), ¶¼´Â ÁßÀÌ¸é releaseRate(ÇÏ¶ô)
+        //ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ì¸ï¿½ accelRate(ï¿½ï¿½ï¿½), ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ì¸ï¿½ releaseRate(ï¿½Ï¶ï¿½)
         float rate = Mathf.Abs(targetMotor) > Mathf.Abs(currentMotor) ? accelRate : releaseRate;
 
         currentMotor = Mathf.MoveTowards(currentMotor, targetMotor, rate * Time.fixedDeltaTime);
@@ -86,13 +86,13 @@ public class CarController : MonoBehaviour
 
     void Steer()
     {
-        float speed = rb.velocity.magnitude; //ÇöÀç ¼Óµµ (m/s)
+        float speed = rb.linearVelocity.magnitude; //ï¿½ï¿½ï¿½ï¿½ ï¿½Óµï¿½ (m/s)
 
-        //¼Óµµ°¡ ºü¸¦¼ö·Ï ÃÖ´ë Á¶Çâ°¢À» ÁÙ¿©¼­ °í¼Ó ¾ÈÁ¤¼º È®º¸
+        //ï¿½Óµï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½â°¢ï¿½ï¿½ ï¿½Ù¿ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ È®ï¿½ï¿½
         float speedFactor = Mathf.Clamp01(speed / fullSteerSpeedThreshold);
         float currentMaxSteer = Mathf.Lerp(maxSteerAngle, minSteerAngle, speedFactor);
 
-        //¸ñÇ¥ °¢µµ·Î ÃÊ´ç steerSpeed¾¿ ºÎµå·´°Ô ÀÌµ¿
+        //ï¿½ï¿½Ç¥ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ê´ï¿½ steerSpeedï¿½ï¿½ ï¿½Îµå·´ï¿½ï¿½ ï¿½Ìµï¿½
         float targetSteerAngle = horizontalInput * currentMaxSteer;
 
         currentSteerAngle = Mathf.MoveTowards(
