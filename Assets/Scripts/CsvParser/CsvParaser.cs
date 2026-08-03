@@ -55,17 +55,17 @@ public static class CsvParaser
 
     private static List<MapData> ParseMapDataCsv(string csvText)
     {
-        var lines = csvText.Split(new[] { "\r\n", "\n" }, System.StringSplitOptions.None);
-        var list = new List<MapData>();
-        if (lines.Length <= 1)
+        var records = SplitCsvRecords(csvText);
+        var list = new List<MapData>(Mathf.Max(0, records.Count - 1));
+        if (records.Count <= 1)
         {
             return list;
         }
 
-        var headerLookup = CreateHeaderLookup(ParseCsvLine(lines[0]));
-        for (int i = 1; i < lines.Length; i++)
+        var headerLookup = CreateHeaderLookup(ParseCsvLine(records[0]));
+        for (int i = 1; i < records.Count; i++)
         {
-            var line = lines[i].Trim();
+            var line = records[i].Trim();
             if (string.IsNullOrEmpty(line))
                 continue;
 
@@ -75,6 +75,55 @@ public static class CsvParaser
         }
 
         return list;
+    }
+
+    private static List<string> SplitCsvRecords(string csvText)
+    {
+        var records = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inQuotes = false;
+
+        for (int i = 0; i < csvText.Length; i++)
+        {
+            char character = csvText[i];
+            if (character == '"')
+            {
+                if (inQuotes && i + 1 < csvText.Length && csvText[i + 1] == '"')
+                {
+                    current.Append(character);
+                    current.Append(csvText[i + 1]);
+                    i++;
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                    current.Append(character);
+                }
+
+                continue;
+            }
+
+            if ((character == '\n' || character == '\r') && !inQuotes)
+            {
+                if (character == '\r' && i + 1 < csvText.Length && csvText[i + 1] == '\n')
+                {
+                    i++;
+                }
+
+                records.Add(current.ToString());
+                current.Clear();
+                continue;
+            }
+
+            current.Append(character);
+        }
+
+        if (current.Length > 0)
+        {
+            records.Add(current.ToString());
+        }
+
+        return records;
     }
 
     private static MapData CreateMapData(string[] columns)
