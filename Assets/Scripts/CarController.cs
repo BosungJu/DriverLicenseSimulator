@@ -18,22 +18,22 @@ public class CarController : MonoBehaviour
     [Header("Car Settings")]
     public float motorForce = 1500f;
     public float brakeForce = 12000f;
-    public float accelRate = 1200f; //�ʴ� ��ũ ��·� (���� ���� ��)
-    public float releaseRate = 2500f; //�ʴ� ��ũ �϶��� (���� �� ��)
-    public float maxSpeedKmh = 110f; // 1�� ���� ���� �ְ��ӵ� ����
+    public float accelRate = 1200f; // 초당 토크 증가량 (가속 페달을 밟을 때)
+    public float releaseRate = 2500f; // 초당 토크 감소량 (가속 페달을 뗄 때)
+    public float maxSpeedKmh = 110f; // 1단 기어 기준 최고 속도 제한
 
     [Header("Steering Settings")]
-    public float maxSteerAngle = 32f; //���ӿ����� �ִ� ���Ⱒ
-    public float minSteerAngle = 6f; //���ӿ����� �ִ� ���Ⱒ
-    public float steerSpeed = 80f; //�ڵ� ����� �ӵ� (�ʴ� ����)
-    public float fullSteerSpeedThreshold = 22f; //�� �ӵ�(m/s) �̻��̸� �ּҰ� ����
+    public float maxSteerAngle = 32f; // 저속에서의 최대 조향각
+    public float minSteerAngle = 6f; // 고속에서의 최소 조향각
+    public float steerSpeed = 80f; // 핸들 회전 속도 (초당 각도)
+    public float fullSteerSpeedThreshold = 22f; // 이 속도(m/s) 이상이면 최소 조향각 적용
 
     float horizontalInput;
     float verticalInput;
     bool isBraking;
 
-    float currentSteerAngle; //���� ���� ���� ���� ����
-    float currentMotor; //���� �ɷ��ִ� ���� ��ũ
+    float currentSteerAngle; // 현재 적용 중인 조향각
+    float currentMotor; // 현재 적용 중인 모터 토크
 
     Rigidbody rb;
 
@@ -70,12 +70,12 @@ public class CarController : MonoBehaviour
     {
         float targetMotor = verticalInput * motorForce;
 
-        //�ְ� �ӵ� ���� : 110 km ������ ���� X
+        // 최고 속도를 넘으면 추가 가속을 제한
         float speedKmh = rb.linearVelocity.magnitude * 3.6f;
         if (speedKmh > maxSpeedKmh)
             targetMotor = 0f;
 
-        //��� ���̸� accelRate(���), ���� ���̸� releaseRate(�϶�)
+        // 목표 토크가 커지면 accelRate, 작아지면 releaseRate 적용
         float rate = Mathf.Abs(targetMotor) > Mathf.Abs(currentMotor) ? accelRate : releaseRate;
 
         currentMotor = Mathf.MoveTowards(currentMotor, targetMotor, rate * Time.fixedDeltaTime);
@@ -86,13 +86,13 @@ public class CarController : MonoBehaviour
 
     void Steer()
     {
-        float speed = rb.linearVelocity.magnitude; //���� �ӵ� (m/s)
+        float speed = rb.linearVelocity.magnitude; // 현재 속도 (m/s)
 
-        //�ӵ��� �������� �ִ� ���Ⱒ�� �ٿ��� ���� ������ Ȯ��
+        // 속도가 높을수록 최대 조향각을 낮추기 위한 비율 계산
         float speedFactor = Mathf.Clamp01(speed / fullSteerSpeedThreshold);
         float currentMaxSteer = Mathf.Lerp(maxSteerAngle, minSteerAngle, speedFactor);
 
-        //��ǥ ������ �ʴ� steerSpeed�� �ε巴�� �̵�
+        // 목표 조향각까지 steerSpeed에 맞춰 부드럽게 이동
         float targetSteerAngle = horizontalInput * currentMaxSteer;
 
         currentSteerAngle = Mathf.MoveTowards(
@@ -102,7 +102,7 @@ public class CarController : MonoBehaviour
         );
 
         frontLeftCollider.steerAngle = currentSteerAngle;
-        frontRightCollider.steerAngle= currentSteerAngle;
+        frontRightCollider.steerAngle = currentSteerAngle;
     }
 
     void Brake()
@@ -114,7 +114,7 @@ public class CarController : MonoBehaviour
         rearLeftCollider.brakeTorque = brake;
         rearRightCollider.brakeTorque = brake;
 
-        if(isBraking)
+        if (isBraking)
         {
             rb.linearVelocity *= 0.98f;
         }
