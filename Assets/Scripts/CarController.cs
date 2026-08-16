@@ -41,7 +41,7 @@ public class CarController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
 
-        rb.centerOfMass = new Vector3(0, -0.7f, 0);
+        rb.centerOfMass = new Vector3(0, 0.2f, 0);
     }
 
     void FixedUpdate()
@@ -116,7 +116,7 @@ public class CarController : MonoBehaviour
 
         if(isBraking)
         {
-            rb.linearVelocity *= 0.98f;
+            rb.velocity *= 0.98f;
         }
     }
 
@@ -141,6 +141,6 @@ public class CarController : MonoBehaviour
 
         wheel.position = pos;
 
-        wheel.rotation = rot * Quaternion.Euler(0, 0, 90);
+        wheel.rotation = rot;
     }
 }
