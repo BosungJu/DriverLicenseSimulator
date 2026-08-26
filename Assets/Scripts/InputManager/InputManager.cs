@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Ports;
 using System.Threading;
 using UnityEngine;
-using UnityEngine.Events;
 
 public class InputManager : MonoBehaviour
 {
@@ -22,30 +20,9 @@ public class InputManager : MonoBehaviour
         EngineLed = 10
     }
 
-    [Serializable]
-    public class SerialMessageEvent : UnityEvent<string>
-    {
-    }
-
-    [Serializable]
-    public class PinStateEvent : UnityEvent<PinType, bool>
-    {
-    }
-
+    const int ReadBufferSize = 1024;
     const int ReadTimeoutMilliseconds = 100;
     const int ThreadJoinTimeoutMilliseconds = 500;
-    const int MaxMessagesPerFrame = 100;
-
-    static readonly Dictionary<string, PinType> CommandPinTypes = new Dictionary<string, PinType>(StringComparer.OrdinalIgnoreCase)
-    {
-        { "LeftTurnSignalButton", PinType.LeftTurnSignal },
-        { "RightTurnSignalButton", PinType.RightTurnSignal },
-        { "EngineButton", PinType.EngineButton },
-        { "EmergencyButton", PinType.EmergencyButton },
-        { "FrontLightButton", PinType.FrontLightButton },
-        { "HighBeamButton", PinType.HighBeamButton },
-        { "WiperButton", PinType.WiperButton }
-    };
 
     [Header("Serial Port")]
     [SerializeField] string portName = "COM3";
@@ -53,13 +30,8 @@ public class InputManager : MonoBehaviour
     [SerializeField] bool autoConnect = true;
     [SerializeField] bool dtrEnable = true;
 
-    [Header("Events")]
-    [SerializeField] SerialMessageEvent serialMessageReceived = new SerialMessageEvent();
-    [SerializeField] PinStateEvent pinStateChanged = new PinStateEvent();
-
-    readonly ConcurrentQueue<string> receivedMessages = new ConcurrentQueue<string>();
+    readonly ConcurrentQueue<string> receivedInputs = new ConcurrentQueue<string>();
     readonly ConcurrentQueue<string> serialErrors = new ConcurrentQueue<string>();
-    readonly Dictionary<PinType, bool> pinStates = new Dictionary<PinType, bool>();
 
     SerialPort serialPort;
     Thread readThread;
@@ -67,18 +39,6 @@ public class InputManager : MonoBehaviour
     volatile bool disconnectRequested;
 
     public bool IsConnected => serialPort != null && serialPort.IsOpen;
-    public string LatestMessage { get; private set; }
-
-    public bool LeftTurnSignal => GetPinState(PinType.LeftTurnSignal);
-    public bool RightTurnSignal => GetPinState(PinType.RightTurnSignal);
-    public bool EngineButton => GetPinState(PinType.EngineButton);
-    public bool EmergencyButton => GetPinState(PinType.EmergencyButton);
-    public bool FrontLightButton => GetPinState(PinType.FrontLightButton);
-    public bool HighBeamButton => GetPinState(PinType.HighBeamButton);
-    public bool WiperButton => GetPinState(PinType.WiperButton);
-
-    public event Action<string> MessageReceived;
-    public event Action<PinType, bool> PinStateChanged;
 
     void OnEnable()
     {
@@ -90,11 +50,9 @@ public class InputManager : MonoBehaviour
 
     void Update()
     {
-        int processedMessageCount = 0;
-        while (processedMessageCount < MaxMessagesPerFrame && receivedMessages.TryDequeue(out string message))
+        while (receivedInputs.TryDequeue(out string serialInput))
         {
-            ProcessMessage(message);
-            processedMessageCount++;
+            Debug.Log(serialInput, this);
         }
 
         while (serialErrors.TryDequeue(out string error))
@@ -140,7 +98,6 @@ public class InputManager : MonoBehaviour
             openedPort = new SerialPort(portName, baudRate)
             {
                 DtrEnable = dtrEnable,
-                NewLine = "\n",
                 ReadTimeout = ReadTimeoutMilliseconds
             };
             openedPort.Open();
@@ -165,8 +122,6 @@ public class InputManager : MonoBehaviour
             Name = "Arduino Serial Reader"
         };
         readThread.Start();
-
-        Debug.Log($"[InputManager] Connected to {portName} at {baudRate} baud.", this);
     }
 
     public void Disconnect()
@@ -204,19 +159,19 @@ public class InputManager : MonoBehaviour
         readThread = null;
     }
 
-    public bool GetPinState(PinType pinType)
-    {
-        return pinStates.TryGetValue(pinType, out bool state) && state;
-    }
-
     void ReadSerialPort(SerialPort openedPort)
     {
+        char[] readBuffer = new char[ReadBufferSize];
+
         while (isReading && openedPort.IsOpen)
         {
             try
             {
-                string message = openedPort.ReadLine().TrimEnd('\r');
-                receivedMessages.Enqueue(message);
+                int readCharacterCount = openedPort.Read(readBuffer, 0, readBuffer.Length);
+                if (readCharacterCount > 0)
+                {
+                    receivedInputs.Enqueue(new string(readBuffer, 0, readCharacterCount));
+                }
             }
             catch (TimeoutException)
             {
@@ -238,63 +193,4 @@ public class InputManager : MonoBehaviour
         }
     }
 
-    void ProcessMessage(string message)
-    {
-        LatestMessage = message;
-        Debug.Log($"[InputManager] Received: {message}", this);
-        serialMessageReceived.Invoke(message);
-        MessageReceived?.Invoke(message);
-
-        if (!TryParseCommandState(message, out PinType pinType, out bool state))
-        {
-            return;
-        }
-
-        bool stateChanged = !pinStates.TryGetValue(pinType, out bool previousState) || previousState != state;
-        pinStates[pinType] = state;
-
-        if (stateChanged)
-        {
-            pinStateChanged.Invoke(pinType, state);
-            PinStateChanged?.Invoke(pinType, state);
-        }
-    }
-
-    static bool TryParseCommandState(string message, out PinType pinType, out bool state)
-    {
-        pinType = default;
-        state = false;
-
-        string[] values = message.Split(new[] { ':' }, 2, StringSplitOptions.RemoveEmptyEntries);
-        if (values.Length != 2 || !CommandPinTypes.TryGetValue(values[0].Trim(), out pinType))
-        {
-            return false;
-        }
-
-        return TryParseState(values[1], out state);
-    }
-
-    static bool TryParseState(string value, out bool state)
-    {
-        switch (value.Trim().ToUpperInvariant())
-        {
-            case "1":
-            case "HIGH":
-            case "TRUE":
-            case "ON":
-                state = true;
-                return true;
-
-            case "0":
-            case "LOW":
-            case "FALSE":
-            case "OFF":
-                state = false;
-                return true;
-
-            default:
-                state = false;
-                return false;
-        }
-    }
 }
