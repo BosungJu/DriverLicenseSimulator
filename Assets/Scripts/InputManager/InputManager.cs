@@ -42,6 +42,8 @@ public class InputManager : MonoBehaviour
 
     void OnEnable()
     {
+        Debug.Log("[InputManager] 스크립트 실행됨");
+
         if (autoConnect)
         {
             Connect();
@@ -98,9 +100,15 @@ public class InputManager : MonoBehaviour
             openedPort = new SerialPort(portName, baudRate)
             {
                 DtrEnable = dtrEnable,
-                ReadTimeout = ReadTimeoutMilliseconds
+                ReadTimeout = ReadTimeoutMilliseconds,
+                NewLine = "\n"
             };
             openedPort.Open();
+
+            Debug.Log(
+                $"[InputManager] {portName} 연결 성공",
+                this
+            );
         }
         catch (Exception exception) when (
             exception is ArgumentException ||
@@ -161,16 +169,15 @@ public class InputManager : MonoBehaviour
 
     void ReadSerialPort(SerialPort openedPort)
     {
-        char[] readBuffer = new char[ReadBufferSize];
-
         while (isReading && openedPort.IsOpen)
         {
             try
             {
-                int readCharacterCount = openedPort.Read(readBuffer, 0, readBuffer.Length);
-                if (readCharacterCount > 0)
+                string serialInput = openedPort.ReadLine().Trim();
+
+                if (!string.IsNullOrEmpty(serialInput))
                 {
-                    receivedInputs.Enqueue(new string(readBuffer, 0, readCharacterCount));
+                    receivedInputs.Enqueue(serialInput);
                 }
             }
             catch (TimeoutException)
