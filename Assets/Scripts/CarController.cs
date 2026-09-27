@@ -28,6 +28,9 @@ public class CarController : MonoBehaviour
     public float steerSpeed = 80f; //핸들 감기는 속도 (초당 각도)
     public float fullSteerSpeedThreshold = 22f; //이 속도(m/s) 이상이면 최소각 적용
 
+    [Header("Systems")]
+    public VehicleSystems systems; //시동 상태 확인
+
     float horizontalInput;
     float verticalInput;
     bool isBraking;
@@ -69,6 +72,9 @@ public class CarController : MonoBehaviour
     void Move()
     {
         float targetMotor = verticalInput * motorForce;
+
+        //시동 꺼져있을 시 가속 불가
+        if (systems != null && !systems.EngineOn) targetMotor = 0f;
 
         //최고 속도 제한 : 110 km 넘으면 가속 X
         float speedKmh = rb.velocity.magnitude * 3.6f;
