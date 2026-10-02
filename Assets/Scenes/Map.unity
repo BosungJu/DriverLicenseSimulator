@@ -835,6 +835,7 @@ GameObject:
   - component: {fileID: 1901200549}
   - component: {fileID: 1901200548}
   - component: {fileID: 1901200547}
+  - component: {fileID: 1901200550}
   m_Layer: 0
   m_Name: MapGenerator
   m_TagString: Untagged
@@ -873,14 +874,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 26b3b059faa6aec40b30fd67558dfcda, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mapName: "\uC625\uCC9C\uD559\uC6D0\uC218\uC815_LineAdd"
+  mapName: "\uC625\uCC9C\uD559\uC6D0\uC218\uC815"
   circleSegments: 32
   cadUnitScale: 0.001
   defaultLineWidth: 0.5
   centerMapOnOrigin: 1
   preferOriginCsv: 0
   skipAnnotationLayers: 0
-  annotationLayers: DIM,Defpoints
+  annotationLayers: Defpoints
   generateBasePlane: 1
   planePadding: 2
   planeHeight: -0.02
@@ -902,6 +903,27 @@ MonoBehaviour:
   fillOpenEndsWithNearestTriangle: 0
   openEndpointTolerance: 1
   nearestTriangleMaxDistance: 5000
+--- !u!114 &1901200550
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1901200544}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fde3b9b0b24c4db28f36bf3a6a64a972, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  mapGenerator: {fileID: 1901200546}
+  testVehicle: {fileID: 0}
+  generateMapOnAwake: 1
+  onRouteProgress:
+    m_PersistentCalls:
+      m_Calls: []
+  onLevelCompleted:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!33 &1901200547
 MeshFilter:
   m_ObjectHideFlags: 0

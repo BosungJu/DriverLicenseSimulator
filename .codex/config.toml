@@ -1,0 +1,7 @@
+# Project-scoped Codex config (applies only when this project is trusted in Codex).
+
+[mcp_servers.claude]
+command = "cmd"
+args = ["/c", "claude", "mcp", "serve"]
+startup_timeout_sec = 30
+tool_timeout_sec = 600

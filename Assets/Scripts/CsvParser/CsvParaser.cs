@@ -5,7 +5,7 @@ using UnityEngine;
 
 public static class CsvParaser
 {
-    public const string mapData = "MapData/옥천학원수정_origin";
+    public const string mapData = "MapData/옥천학원수정";
     private const int MapDataColumnCount = 47;
 
     public static List<MapData> GetMapData(string filename)
@@ -62,19 +62,49 @@ public static class CsvParaser
             return list;
         }
 
-        var headerLookup = CreateHeaderLookup(ParseCsvLine(records[0]));
+        var headers = ParseCsvLine(records[0]);
+        var headerLookup = CreateHeaderLookup(headers);
         for (int i = 1; i < records.Count; i++)
         {
             var line = records[i].Trim();
             if (string.IsNullOrEmpty(line))
                 continue;
 
-            var columns = NormalizeColumns(ParseCsvLine(line).ToArray(), headerLookup);
+            var sourceColumns = ParseCsvLine(line);
+            RestoreDataTextColumn(sourceColumns, headerLookup, headers.Count);
+            var columns = NormalizeColumns(sourceColumns.ToArray(), headerLookup);
 
             list.Add(CreateMapData(columns));
         }
 
         return list;
+    }
+
+    private static void RestoreDataTextColumn(List<string> columns, Dictionary<string, int> headerLookup, int headerCount)
+    {
+        int extraColumnCount = columns.Count - headerCount;
+        if (extraColumnCount <= 0)
+        {
+            return;
+        }
+
+        // The CAD export leaves the commas in DATA text unquoted.
+        string[] sourceColumns = columns.ToArray();
+        string layer = GetColumn(sourceColumns, headerLookup, "layer", "도면층").Trim();
+        string entityName = NormalizeEntityName(GetColumn(sourceColumns, headerLookup, "name", "이름"));
+        if (!layer.Equals("DATA", System.StringComparison.OrdinalIgnoreCase) || entityName != "Text")
+        {
+            return;
+        }
+
+        if (!headerLookup.TryGetValue("value", out int textIndex)
+            && !headerLookup.TryGetValue("값", out textIndex))
+        {
+            return;
+        }
+
+        columns[textIndex] = string.Join(",", columns.GetRange(textIndex, extraColumnCount + 1));
+        columns.RemoveRange(textIndex + 1, extraColumnCount);
     }
 
     private static List<string> SplitCsvRecords(string csvText)
@@ -175,7 +205,8 @@ public static class CsvParaser
             ToFloat(columns, 43),
             GetString(columns, 44),
             ToFloat(columns, 45),
-            ToFloat(columns, 46)
+            ToFloat(columns, 46),
+            GetString(columns, 1) == "Text" ? GetString(columns, 7) : string.Empty
         );
     }
 
@@ -314,6 +345,9 @@ public static class CsvParaser
                 return "Circle";
             case "점":
                 return "Point";
+            case "문자":
+            case "TEXT":
+                return "Text";
             default:
                 return name.Trim();
         }
