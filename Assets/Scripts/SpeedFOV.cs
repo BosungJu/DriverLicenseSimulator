@@ -1,20 +1,20 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using Cinemachine; //vcam Á¦¾î¿¡ »ç¿ë
+using Cinemachine; //vcam ï¿½ï¿½ï¿½î¿¡ ï¿½ï¿½ï¿½
 
 public class SpeedFOV : MonoBehaviour
 {
-    public Rigidbody carRb; //CarÀÇ Rigidbody
-    public CinemachineVirtualCamera frontVcam; //DriverEyeÀÇ Vcam (Á¤¸é)
+    public Rigidbody carRb; //Carï¿½ï¿½ Rigidbody
+    public CinemachineVirtualCamera frontVcam; //DriverEyeï¿½ï¿½ Vcam (ï¿½ï¿½ï¿½ï¿½)
     public Camera leftCam; //LeftCamera
     public Camera rightCam; //RightCamera
 
-    [Header("FOV ¼³Á¤")]
-    public float baseFOV = 65f; //Á¤Áö ½Ã
-    public float maxFOV = 78f; //ÃÖ°í¼Ó ½Ã
-    public float maxSpeedKmh = 110f; //ÀÌ ¼Óµµ¿¡¼­ maxFOV µµ´Þ
-    public float changeSpeed = 3f; //FOV º¯ÇÏ´Â ºÎµå·¯¿ò
+    [Header("FOV ï¿½ï¿½ï¿½ï¿½")]
+    public float baseFOV = 65f; //ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½
+    public float maxFOV = 78f; //ï¿½Ö°ï¿½ï¿½ï¿½ ï¿½ï¿½
+    public float maxSpeedKmh = 110f; //ï¿½ï¿½ ï¿½Óµï¿½ï¿½ï¿½ï¿½ï¿½ maxFOV ï¿½ï¿½ï¿½ï¿½
+    public float changeSpeed = 3f; //FOV ï¿½ï¿½ï¿½Ï´ï¿½ ï¿½Îµå·¯ï¿½ï¿½
 
     // Start is called before the first frame update
     void Start()
@@ -25,17 +25,17 @@ public class SpeedFOV : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        float speedKmh = carRb.velocity.magnitude * 3.6f;
+        float speedKmh = carRb.linearVelocity.magnitude * 3.6f;
 
-        //¼Óµµ ºñÀ² (0~1)·Î ¸ñÇ¥ FOV °è»ê
+        //ï¿½Óµï¿½ ï¿½ï¿½ï¿½ï¿½ (0~1)ï¿½ï¿½ ï¿½ï¿½Ç¥ FOV ï¿½ï¿½ï¿½
         float t = Mathf.Clamp01(speedKmh / maxSpeedKmh);
         float targetFOV = Mathf.Lerp(baseFOV, maxFOV, t);
         float lerp = changeSpeed * Time.deltaTime;
 
-        //Á¤¸éÀº vcamÀÌ FOV¸¦ Áã°í ÀÖ¾î¼­ vcamÀ» ÅëÇØ ¹Ù²Þ
+        //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ vcamï¿½ï¿½ FOVï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½Ö¾î¼­ vcamï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ù²ï¿½
         frontVcam.m_Lens.FieldOfView = Mathf.Lerp(frontVcam.m_Lens.FieldOfView, targetFOV, lerp);
 
-        //ÁÂ¿ì´Â ÀÏ¹Ý Ä«¸Þ¶ó¶ó Á÷Á¢ ¹Ù²Þ
+        //ï¿½Â¿ï¿½ï¿½ ï¿½Ï¹ï¿½ Ä«ï¿½Þ¶ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ù²ï¿½
         leftCam.fieldOfView = Mathf.Lerp(leftCam.fieldOfView, targetFOV, lerp);
 
         rightCam.fieldOfView = Mathf.Lerp(rightCam.fieldOfView, targetFOV, lerp);
