@@ -27,7 +27,8 @@ public class CarController : MonoBehaviour
     public float minSteerAngle = 6f; // 고속에서의 최소 조향각
     public float steerSpeed = 80f; // 핸들 회전 속도 (초당 각도)
     public float fullSteerSpeedThreshold = 22f; // 이 속도(m/s) 이상이면 최소 조향각 적용
-
+    [Header("Systems")]
+    public VehicleSystems systems;
     float horizontalInput;
     float verticalInput;
     bool isBraking;
@@ -69,6 +70,15 @@ public class CarController : MonoBehaviour
     void Move()
     {
         float targetMotor = verticalInput * motorForce;
+
+        // 시동이 꺼져 있거나 연결이 없으면 구동 토크 차단
+        if (systems == null || !systems.EngineOn)
+        {
+            currentMotor = 0f;
+            rearLeftCollider.motorTorque = 0f;
+            rearRightCollider.motorTorque = 0f;
+            return;
+        }
 
         // 최고 속도를 넘으면 추가 가속을 제한
         float speedKmh = rb.linearVelocity.magnitude * 3.6f;
