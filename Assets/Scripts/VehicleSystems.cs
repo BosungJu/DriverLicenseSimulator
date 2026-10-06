@@ -64,8 +64,21 @@ public class VehicleSystems : MonoBehaviour
             rightOn = !rightOn; leftOn = false; hazardOn = false; signalArmed = false;
         }
 
-        if (Input.GetKeyDown(KeyCode.T)) headlightOn = !headlightOn;  // 전조등
-        if (Input.GetKeyDown(KeyCode.Y)) highBeamOn = !highBeamOn;   // 상향등
+        // 전조등(T) — 켜기·끄기
+        if (Input.GetKeyDown(KeyCode.T))
+        {
+            headlightOn = !headlightOn;
+
+            // 전조등을 끄면 상향등도 함께 끄기
+            if (!headlightOn)
+                highBeamOn = false;
+        }
+
+        // 상향등(Y) — 전조등이 켜진 상태에서만 켜기·끄기
+        if (Input.GetKeyDown(KeyCode.Y) && headlightOn)
+        {
+            highBeamOn = !highBeamOn;
+        }
     }
 
     void TurnAllOff()
@@ -115,4 +128,6 @@ public class VehicleSystems : MonoBehaviour
     }
 
     public bool EngineOn => engineOn;   // CarController에서 읽기용
+    public bool HeadlightOn => headlightOn;
+    public bool HighBeamOn => highBeamOn;
 }
