@@ -3,20 +3,41 @@ using Sirenix.OdinInspector;
 using UnityEngine;
 using UnityEngine.Events;
 
-[RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
+[System.Serializable]
+public class MapRoutePointEnterEvent : UnityEvent<int, GameObject>
+{
+}
+
+[System.Serializable]
+public class MapLayerEnterEvent : UnityEvent<string, GameObject>
+{
+}
+
+[ExecuteAlways]
 public class MapGenerator : MonoBehaviour
 {
     private const float MinimumLineWidth = 0.01f;
     private const float FullAngle = 360f;
     private const string LineLayerName = "Line";
     private const string TestLayerName = "T_Test";
+    private const string RoutePointLayerName = "Point";
     private const string GeneratedLineMeshName = "Generated Line Layer";
     private const string GeneratedTestMeshName = "Generated T_Test Layer";
+    private const string GeneratedRoutePointsName = "Generated Route Points";
+    private const string GeneratedRepairsName = "Generated Open End Repairs";
+    private const string GeneratedAdditionalLinesName = "Generated Additional Lines";
 
     public string mapName;
     public Mesh CurrentMesh => mesh;
+    public int RoutePointCount => routePointCount;
+    public IReadOnlyList<MapRouteInstruction> RouteInstructions => routeInstructions;
+    public IReadOnlyList<MapRouteSection> RouteSections => routeSections;
+    public string RouteInstructionError { get; private set; } = string.Empty;
+    public event System.Action MapGenerated;
     public UnityEvent<GameObject> OnLineCollisionEnter => onLineCollisionEnter;
     public UnityEvent<GameObject> OnTestCollisionEnter => onTestCollisionEnter;
+    public MapRoutePointEnterEvent OnRoutePointEnter => onRoutePointEnter;
+    public MapLayerEnterEvent OnLayerEnter => onLayerEnter;
 
     public void SubscribeLineCollision(UnityAction<GameObject> listener)
     {
@@ -38,6 +59,16 @@ public class MapGenerator : MonoBehaviour
         onTestCollisionEnter.RemoveListener(listener);
     }
 
+    public void SubscribeRoutePoint(UnityAction<int, GameObject> listener)
+    {
+        onRoutePointEnter.AddListener(listener);
+    }
+
+    public void UnsubscribeRoutePoint(UnityAction<int, GameObject> listener)
+    {
+        onRoutePointEnter.RemoveListener(listener);
+    }
+
     [Header("Corner Settings")]
     [SerializeField] private int circleSegments = 64; // 원호를 그릴 때 사용할 세그먼트 수
 
@@ -47,7 +78,7 @@ public class MapGenerator : MonoBehaviour
     [SerializeField] private bool centerMapOnOrigin = true;
     [SerializeField] private bool preferOriginCsv = true;
     [SerializeField] private bool skipAnnotationLayers = true;
-    [SerializeField] private string annotationLayers = "DIM,Defpoints";
+    [SerializeField] private string annotationLayers = "Defpoints";
 
     [Header("Plane Settings")]
     [SerializeField] private bool generateBasePlane = true;
@@ -60,6 +91,14 @@ public class MapGenerator : MonoBehaviour
     [Header("Layer Collision Events")]
     [SerializeField] private UnityEvent<GameObject> onLineCollisionEnter = new UnityEvent<GameObject>();
     [SerializeField] private UnityEvent<GameObject> onTestCollisionEnter = new UnityEvent<GameObject>();
+    [SerializeField] private MapLayerEnterEvent onLayerEnter = new MapLayerEnterEvent();
+
+    [Header("Route Point Settings")]
+    [SerializeField] private bool generateRoutePoints = true;
+    [SerializeField] private float routePointWidth = 6f;
+    [SerializeField] private float routePointHeight = 3f;
+    [SerializeField] private float routePointDepth = 1f;
+    [SerializeField] private MapRoutePointEnterEvent onRoutePointEnter = new MapRoutePointEnterEvent();
 
     [Header("Hill Settings")]
     [SerializeField] private bool generateHillSurface = true;
@@ -69,41 +108,27 @@ public class MapGenerator : MonoBehaviour
     [SerializeField] private float hillHeight = 1.5f;
     [SerializeField] private Material hillMaterial;
 
-    [Header("Open Shape Repair")]
-    [SerializeField] private bool fillOpenEndsWithNearestTriangle = true;
-    [SerializeField] private float openEndpointTolerance = 1f;
-    [SerializeField] private float nearestTriangleMaxDistance = 5000f;
-
     private List<Vector3> vertices = new List<Vector3>();
     private List<int> triangles = new List<int>();
     private readonly List<Vector3> otherLayerVertices = new List<Vector3>();
     private readonly List<int> otherLayerTriangles = new List<int>();
-    private readonly List<Vector3> lineLayerVertices = new List<Vector3>();
-    private readonly List<int> lineLayerTriangles = new List<int>();
-    private readonly List<Vector3> testLayerVertices = new List<Vector3>();
-    private readonly List<int> testLayerTriangles = new List<int>();
+    private readonly Dictionary<string, LayerMeshData> layerMeshes = new Dictionary<string, LayerMeshData>(System.StringComparer.OrdinalIgnoreCase);
     private readonly List<Vector2> reusablePolylinePoints = new List<Vector2>(4);
     private HashSet<string> annotationLayerSet;
-    private MeshFilter mapMeshFilter;
-    private MeshRenderer mapMeshRenderer;
-    private MeshCollider mapMeshCollider;
     private Mesh mesh;
+    private int routePointCount;
+    private IReadOnlyList<MapRouteInstruction> routeInstructions = System.Array.Empty<MapRouteInstruction>();
+    private IReadOnlyList<MapRouteSection> routeSections = System.Array.Empty<MapRouteSection>();
     private Vector2 cadOrigin;
     private bool hasHillProfile;
     private float hillProfileMinY;
     private float hillProfileMaxY;
     private List<float> hillProfileXValues = new List<float>();
 
-    private struct CadGraphEndpoint
+    private sealed class LayerMeshData
     {
-        public readonly Vector2 Point;
-        public readonly Vector2 ConnectedPoint;
-
-        public CadGraphEndpoint(Vector2 point, Vector2 connectedPoint)
-        {
-            Point = point;
-            ConnectedPoint = connectedPoint;
-        }
+        public readonly List<Vector3> Vertices = new List<Vector3>();
+        public readonly List<int> Triangles = new List<int>();
     }
 
     public void SetMap(string s)
@@ -126,6 +151,7 @@ public class MapGenerator : MonoBehaviour
         hillProfileXValues.Clear();
         if (mapDataList == null || mapDataList.Count == 0)
         {
+            MapGenerated?.Invoke();
             return;
         }
 
@@ -150,12 +176,14 @@ public class MapGenerator : MonoBehaviour
         }
 
         SelectMeshBuffers(null);
-        if (fillOpenEndsWithNearestTriangle)
+        ApplyToMesh();
+
+        if (generateRoutePoints)
         {
-            DrawNearestTriangleOpenEndRepairs(mapDataList);
+            GenerateRoutePoints(mapDataList);
         }
 
-        ApplyToMesh();
+        MapGenerated?.Invoke();
     }
 
     [Button]
@@ -165,15 +193,84 @@ public class MapGenerator : MonoBehaviour
     }
 
 #if UNITY_EDITOR
+    private void OnEnable()
+    {
+        QueueMissingSensorMeshRestore();
+    }
+
+    private void OnValidate()
+    {
+        QueueMissingSensorMeshRestore();
+    }
+
+    private void OnDisable()
+    {
+        UnityEditor.EditorApplication.delayCall -= RestoreMissingSensorMeshes;
+    }
+
+    private void QueueMissingSensorMeshRestore()
+    {
+        // Defer hierarchy changes until Unity has finished loading/validating the scene.
+        UnityEditor.EditorApplication.delayCall -= RestoreMissingSensorMeshes;
+        UnityEditor.EditorApplication.delayCall += RestoreMissingSensorMeshes;
+    }
+
+    private void RestoreMissingSensorMeshes()
+    {
+        if (this == null || !isActiveAndEnabled || Application.isPlaying
+            || UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode
+            || UnityEditor.EditorUtility.IsPersistent(this)
+            || !gameObject.scene.IsValid())
+        {
+            return;
+        }
+
+        if (transform.Find(GeneratedRepairsName) != null)
+        {
+            ClearGeneratedChild(GeneratedRepairsName);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+        }
+
+        if (HasSensorMesh(GeneratedLineMeshName) && HasSensorMesh(GeneratedTestMeshName))
+        {
+            return;
+        }
+
+        string resolvedMapName = ResolveMapName(mapName);
+        List<MapData> mapDataList = CsvParaser.GetMapData(resolvedMapName);
+        if (mapDataList.Count == 0)
+        {
+            return;
+        }
+
+        mapName = resolvedMapName;
+        SetMapData(mapDataList);
+        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+    }
+
+    private bool HasSensorMesh(string childName)
+    {
+        Transform child = transform.Find(childName);
+        return child != null
+            && child.TryGetComponent<MeshFilter>(out var meshFilter)
+            && meshFilter.sharedMesh != null
+            && meshFilter.sharedMesh.vertexCount > 0
+            && child.TryGetComponent<MeshRenderer>(out var meshRenderer)
+            && meshRenderer.enabled
+            && meshRenderer.sharedMaterial != null
+            && child.TryGetComponent<MeshCollider>(out var meshCollider)
+            && meshCollider.sharedMesh == meshFilter.sharedMesh;
+    }
+
     [Button]
     public void SaveGeneratedMeshAsset()
     {
-        if (mesh == null || vertices.Count == 0)
+        if (mesh == null)
         {
             GenerateMap();
         }
 
-        if (mesh == null || vertices.Count == 0)
+        if (mesh == null)
         {
             Debug.LogWarning("MapGenerator: no mesh data to save.");
             return;
@@ -193,7 +290,24 @@ public class MapGenerator : MonoBehaviour
             return;
         }
 
-        Mesh meshAsset = Instantiate(mesh);
+        var combineInstances = new List<CombineInstance>();
+        if (mesh.vertexCount > 0)
+        {
+            combineInstances.Add(new CombineInstance { mesh = mesh });
+        }
+
+        foreach (Transform child in transform)
+        {
+            if (child.TryGetComponent<MapLayerCollisionRelay>(out _)
+                && child.TryGetComponent<MeshFilter>(out var layerFilter)
+                && layerFilter.sharedMesh != null)
+            {
+                combineInstances.Add(new CombineInstance { mesh = layerFilter.sharedMesh });
+            }
+        }
+
+        Mesh meshAsset = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+        meshAsset.CombineMeshes(combineInstances.ToArray(), true, false);
         meshAsset.name = $"{fileName}_Mesh";
 
         path = UnityEditor.AssetDatabase.GenerateUniqueAssetPath(path);
@@ -327,14 +441,16 @@ public class MapGenerator : MonoBehaviour
 
     public void ApplyToMesh()
     {
-        CacheComponents();
+        ClearLegacyRootMesh();
+        ClearGeneratedChild(GeneratedRepairsName);
+        ClearGeneratedChild(GeneratedAdditionalLinesName);
 
         if (mesh != null)
         {
             DestroyMesh(mesh);
         }
 
-        mesh = new Mesh { name = "Generated Other Layers Mesh" };
+        mesh = new Mesh { name = "Generated Additional Lines Mesh" };
         if (vertices.Count > 65535) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
 
         mesh.SetVertices(vertices);
@@ -342,40 +458,56 @@ public class MapGenerator : MonoBehaviour
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
 
-        mapMeshFilter.sharedMesh = mesh;
-
-        if (mapMeshCollider != null)
+        if (mesh.vertexCount > 0)
         {
-            mapMeshCollider.sharedMesh = null;
+            var additionalLines = new GameObject(GeneratedAdditionalLinesName);
+            additionalLines.transform.SetParent(transform, false);
+            additionalLines.AddComponent<MeshFilter>().sharedMesh = mesh;
+            additionalLines.AddComponent<MeshRenderer>().sharedMaterial = lineMaterial != null
+                ? lineMaterial
+                : GetDefaultMaterial(GeneratedAdditionalLinesName);
         }
 
-        CreateLayerMesh(GeneratedLineMeshName, "Generated Line Layer Mesh", lineLayerVertices, lineLayerTriangles, LineLayerName);
-        CreateLayerMesh(GeneratedTestMeshName, "Generated T_Test Layer Mesh", testLayerVertices, testLayerTriangles, TestLayerName);
-
-        if (lineMaterial != null)
+        foreach (var layer in layerMeshes)
         {
-            mapMeshRenderer.sharedMaterial = lineMaterial;
+            string childName = GetLayerChildName(layer.Key);
+            ClearGeneratedChild(childName);
+            CreateLayerMesh(childName, $"{childName} Mesh", layer.Value.Vertices, layer.Value.Triangles, layer.Key);
         }
+
     }
 
     public void ClearMap()
     {
-        CacheComponents();
+        ClearLegacyRootMesh();
 
         vertices.Clear();
         triangles.Clear();
         otherLayerVertices.Clear();
         otherLayerTriangles.Clear();
-        lineLayerVertices.Clear();
-        lineLayerTriangles.Clear();
-        testLayerVertices.Clear();
-        testLayerTriangles.Clear();
+        // Serialized relays also identify generated layers after a scene reload.
+        for (int i = transform.childCount - 1; i >= 0; i--)
+        {
+            Transform child = transform.GetChild(i);
+            if (child.TryGetComponent<MapLayerCollisionRelay>(out _))
+            {
+                ClearGeneratedChild(child.name);
+            }
+        }
+        layerMeshes.Clear();
+        routePointCount = 0;
+        routeSections = System.Array.Empty<MapRouteSection>();
+        routeInstructions = System.Array.Empty<MapRouteInstruction>();
+        RouteInstructionError = string.Empty;
         vertices = otherLayerVertices;
         triangles = otherLayerTriangles;
         ClearGeneratedChild("Generated Base Plane");
         ClearGeneratedChild("Generated Hill Surface");
         ClearGeneratedChild(GeneratedLineMeshName);
         ClearGeneratedChild(GeneratedTestMeshName);
+        ClearGeneratedChild(GeneratedRoutePointsName);
+        ClearGeneratedChild(GeneratedRepairsName);
+        ClearGeneratedChild(GeneratedAdditionalLinesName);
 
         if (mesh != null)
         {
@@ -383,35 +515,40 @@ public class MapGenerator : MonoBehaviour
             mesh = null;
         }
 
-        if (mapMeshFilter != null)
-        {
-            mapMeshFilter.sharedMesh = null;
-        }
-
-        if (mapMeshCollider != null)
-        {
-            mapMeshCollider.sharedMesh = null;
-        }
     }
 
     private void SelectMeshBuffers(string layerName)
     {
+        if (layerName == null)
+        {
+            vertices = otherLayerVertices;
+            triangles = otherLayerTriangles;
+            return;
+        }
+
+        if (!layerMeshes.TryGetValue(layerName, out LayerMeshData layerData))
+        {
+            layerData = new LayerMeshData();
+            layerMeshes.Add(layerName, layerData);
+        }
+
+        vertices = layerData.Vertices;
+        triangles = layerData.Triangles;
+    }
+
+    private string GetLayerChildName(string layerName)
+    {
         if (string.Equals(layerName, LineLayerName, System.StringComparison.OrdinalIgnoreCase))
         {
-            vertices = lineLayerVertices;
-            triangles = lineLayerTriangles;
-            return;
+            return GeneratedLineMeshName;
         }
 
         if (string.Equals(layerName, TestLayerName, System.StringComparison.OrdinalIgnoreCase))
         {
-            vertices = testLayerVertices;
-            triangles = testLayerTriangles;
-            return;
+            return GeneratedTestMeshName;
         }
 
-        vertices = otherLayerVertices;
-        triangles = otherLayerTriangles;
+        return $"Generated {layerName} Layer";
     }
 
     private void CreateLayerMesh(
@@ -433,7 +570,15 @@ public class MapGenerator : MonoBehaviour
 
     public void NotifyLayerCollision(string layerName, Collision collision)
     {
-        GameObject otherObject = collision.gameObject;
+        GameObject otherObject = collision.rigidbody != null
+            ? collision.rigidbody.gameObject
+            : collision.gameObject;
+        NotifyLayerEnter(layerName, otherObject);
+    }
+
+    private void NotifyLayerEnter(string layerName, GameObject otherObject)
+    {
+        onLayerEnter.Invoke(layerName, otherObject);
         if (string.Equals(layerName, LineLayerName, System.StringComparison.OrdinalIgnoreCase))
         {
             onLineCollisionEnter.Invoke(otherObject);
@@ -444,21 +589,136 @@ public class MapGenerator : MonoBehaviour
         }
     }
 
-    private void CacheComponents()
+    public void NotifyLayerTrigger(string layerName, int routePointIndex, Collider other)
     {
-        if (mapMeshFilter == null)
+        GameObject otherObject = other.attachedRigidbody != null
+            ? other.attachedRigidbody.gameObject
+            : other.gameObject;
+        NotifyLayerEnter(layerName, otherObject);
+        if (routePointIndex >= 0 && string.Equals(layerName, RoutePointLayerName, System.StringComparison.OrdinalIgnoreCase))
         {
-            mapMeshFilter = GetComponent<MeshFilter>();
+            onRoutePointEnter.Invoke(routePointIndex, otherObject);
+        }
+    }
+
+    private void GenerateRoutePoints(List<MapData> mapDataList)
+    {
+        var routeDataList = new List<MapData>();
+        foreach (var data in mapDataList)
+        {
+            if (data.Name == "Point"
+                && string.Equals(data.Layer, RoutePointLayerName, System.StringComparison.OrdinalIgnoreCase))
+            {
+                routeDataList.Add(data);
+            }
         }
 
-        if (mapMeshRenderer == null)
+        // Point 레이어는 CAD Z 값을 시험 경로의 통과 순서로 사용한다.
+        routeDataList.Sort((left, right) => left.PosZ.CompareTo(right.PosZ));
+        routePointCount = routeDataList.Count;
+        BuildRouteInstructions(mapDataList, routeDataList);
+        if (routePointCount == 0)
         {
-            mapMeshRenderer = GetComponent<MeshRenderer>();
+            return;
         }
 
-        if (mapMeshCollider == null)
+        var routeParent = new GameObject(GeneratedRoutePointsName);
+        routeParent.transform.SetParent(transform, false);
+        var generatedSections = new List<MapRouteSection>(routePointCount);
+
+        for (int i = 0; i < routeDataList.Count; i++)
         {
-            TryGetComponent(out mapMeshCollider);
+            MapData routeData = routeDataList[i];
+            Vector2 cadPoint = new Vector2(routeData.PosX, routeData.PosY);
+            Vector2 routeDirection = GetRouteDirection(routeDataList, i);
+            Vector2 scaledPoint = (cadPoint - cadOrigin) * cadUnitScale;
+
+            var routePoint = new GameObject($"Route Point {routeData.PosZ:00}");
+            routePoint.transform.SetParent(routeParent.transform, false);
+            routePoint.transform.localPosition = new Vector3(
+                scaledPoint.x,
+                GetGroundHeight(cadPoint) + Mathf.Max(routePointHeight, MinimumLineWidth) * 0.5f,
+                scaledPoint.y);
+
+            if (routeDirection.sqrMagnitude > Mathf.Epsilon)
+            {
+                routePoint.transform.localRotation = Quaternion.LookRotation(
+                    new Vector3(routeDirection.x, 0f, routeDirection.y),
+                    Vector3.up);
+            }
+
+            var routeCollider = routePoint.AddComponent<BoxCollider>();
+            routeCollider.isTrigger = true;
+            routeCollider.size = new Vector3(
+                Mathf.Max(routePointWidth, MinimumLineWidth),
+                Mathf.Max(routePointHeight, MinimumLineWidth),
+                Mathf.Max(routePointDepth, MinimumLineWidth));
+
+            MapLayerCollisionRelay collisionRelay = routePoint.AddComponent<MapLayerCollisionRelay>();
+            collisionRelay.Initialize(this, RoutePointLayerName, i);
+
+            MapRouteInstruction instruction = i < routeInstructions.Count ? routeInstructions[i] : null;
+            MapRouteSection section = routePoint.AddComponent<MapRouteSection>();
+            section.Initialize(i, routeData, instruction);
+            generatedSections.Add(section);
+        }
+
+        routeSections = generatedSections.AsReadOnly();
+    }
+
+    private void BuildRouteInstructions(List<MapData> mapDataList, List<MapData> sortedRoutePoints)
+    {
+        MapData instructionData = null;
+        foreach (MapData data in mapDataList)
+        {
+            if (data.Name != "Text" || !string.Equals(data.Layer, "DATA", System.StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (instructionData != null)
+            {
+                RouteInstructionError = "Expected one DATA Text containing the route instructions.";
+                Debug.LogError($"MapGenerator: {RouteInstructionError}", this);
+                return;
+            }
+
+            instructionData = data;
+        }
+
+        // Maps without DATA retain their existing route-only behavior.
+        if (instructionData == null)
+        {
+            return;
+        }
+
+        if (!MapRouteInstruction.TryParse(instructionData.Text, sortedRoutePoints, out routeInstructions, out string error))
+        {
+            RouteInstructionError = error;
+            Debug.LogError($"MapGenerator: {error}", this);
+        }
+    }
+
+    private Vector2 GetRouteDirection(List<MapData> routeDataList, int routePointIndex)
+    {
+        int previousIndex = Mathf.Max(0, routePointIndex - 1);
+        int nextIndex = Mathf.Min(routeDataList.Count - 1, routePointIndex + 1);
+        Vector2 previousPoint = new Vector2(routeDataList[previousIndex].PosX, routeDataList[previousIndex].PosY);
+        Vector2 nextPoint = new Vector2(routeDataList[nextIndex].PosX, routeDataList[nextIndex].PosY);
+        return (nextPoint - previousPoint).normalized;
+    }
+
+    private void ClearLegacyRootMesh()
+    {
+        // Older scenes may still contain the former root mesh components.
+        if (TryGetComponent<MeshFilter>(out var legacyFilter))
+        {
+            legacyFilter.sharedMesh = null;
+        }
+
+        if (TryGetComponent<MeshCollider>(out var legacyCollider))
+        {
+            legacyCollider.sharedMesh = null;
         }
     }
 
@@ -484,6 +744,8 @@ public class MapGenerator : MonoBehaviour
 
         if (Application.isPlaying)
         {
+            child.gameObject.SetActive(false);
+            child.SetParent(null, false);
             Destroy(child.gameObject);
         }
         else
@@ -494,10 +756,17 @@ public class MapGenerator : MonoBehaviour
 
     private void DestroyGeneratedMaterial(Material targetMaterial)
     {
-        if ((targetMaterial.hideFlags & HideFlags.DontSave) == 0)
+        if (targetMaterial == planeMaterial || targetMaterial == lineMaterial || targetMaterial == hillMaterial)
         {
             return;
         }
+
+#if UNITY_EDITOR
+        if (UnityEditor.EditorUtility.IsPersistent(targetMaterial))
+        {
+            return;
+        }
+#endif
 
         if (Application.isPlaying)
         {
@@ -569,7 +838,12 @@ public class MapGenerator : MonoBehaviour
 
     private string ResolveMapName(string requestedMapName)
     {
-        if (!preferOriginCsv || string.IsNullOrWhiteSpace(requestedMapName))
+        if (string.IsNullOrWhiteSpace(requestedMapName))
+        {
+            return CsvParaser.mapData;
+        }
+
+        if (!preferOriginCsv)
         {
             return requestedMapName;
         }
@@ -579,7 +853,8 @@ public class MapGenerator : MonoBehaviour
             ? requestedMapName
             : requestedMapName.Substring(0, requestedMapName.Length - extension.Length);
 
-        if (pathWithoutExtension.EndsWith("_origin", System.StringComparison.OrdinalIgnoreCase))
+        if (pathWithoutExtension.EndsWith("_origin", System.StringComparison.OrdinalIgnoreCase)
+            || pathWithoutExtension.EndsWith("_final", System.StringComparison.OrdinalIgnoreCase))
         {
             return requestedMapName;
         }
@@ -679,7 +954,8 @@ public class MapGenerator : MonoBehaviour
             hillTriangles.Add(baseIdx + 3);
         }
 
-        CreateChildMesh("Generated Hill Surface", "Generated Hill Surface Mesh", hillVertices, hillTriangles, hillMaterial, true);
+        Material surfaceMaterial = hillMaterial != null ? hillMaterial : planeMaterial;
+        CreateChildMesh("Generated Hill Surface", "Generated Hill Surface Mesh", hillVertices, hillTriangles, surfaceMaterial, true);
     }
 
     private void BuildHillProfile(List<MapData> hillDataList)
@@ -797,8 +1073,7 @@ public class MapGenerator : MonoBehaviour
         var meshRenderer = child.AddComponent<MeshRenderer>();
         var childMesh = new Mesh
         {
-            name = meshName,
-            hideFlags = HideFlags.DontSave
+            name = meshName
         };
         if (meshVertices.Count > 65535)
         {
@@ -831,8 +1106,7 @@ public class MapGenerator : MonoBehaviour
 
         var material = new Material(shader)
         {
-            name = $"{materialName} Material",
-            hideFlags = HideFlags.DontSave
+            name = $"{materialName} Material"
         };
         if (materialName.Contains("Plane"))
         {
@@ -850,214 +1124,6 @@ public class MapGenerator : MonoBehaviour
         return material;
     }
 
-    private void DrawNearestTriangleOpenEndRepairs(List<MapData> mapDataList)
-    {
-        var degrees = new Dictionary<string, int>();
-        var candidates = new List<Vector2>();
-        var endpoints = new List<CadGraphEndpoint>();
-        var existingEdges = new HashSet<string>();
-
-        foreach (var data in mapDataList)
-        {
-            if (IsCollisionLayer(data.Layer))
-            {
-                continue;
-            }
-
-            if (ShouldDraw(data))
-            {
-                AddGraphData(data, degrees, candidates, endpoints, existingEdges);
-                continue;
-            }
-
-            if (data.Name == "Point" && IsConnectionCandidateLayer(data.Layer))
-            {
-                AddCandidate(new Vector2(data.PosX, data.PosY), candidates);
-            }
-        }
-
-        foreach (var endpoint in endpoints)
-        {
-            if (!degrees.TryGetValue(GetPointKey(endpoint.Point), out int degree) || degree != 1)
-            {
-                continue;
-            }
-
-            if (!TryFindNearestTrianglePoint(endpoint, candidates, existingEdges, out var target))
-            {
-                continue;
-            }
-
-            string edgeKey = GetEdgeKey(endpoint.Point, target);
-            if (!existingEdges.Add(edgeKey))
-            {
-                continue;
-            }
-
-            DrawTriangle(endpoint.Point, endpoint.ConnectedPoint, target);
-        }
-    }
-
-    private void AddGraphData(
-        MapData data,
-        Dictionary<string, int> degrees,
-        List<Vector2> candidates,
-        List<CadGraphEndpoint> endpoints,
-        HashSet<string> existingEdges)
-    {
-        if (data.Name == "Line")
-        {
-            AddGraphEdge(GetStartPoint(data), GetEndPoint(data), degrees, candidates, endpoints, existingEdges);
-        }
-        else if (data.Name == "PolyLine")
-        {
-            var points = GetPolylinePoints(data);
-            for (int i = 0; i < points.Count - 1; i++)
-            {
-                AddGraphEdge(points[i], points[i + 1], degrees, candidates, endpoints, existingEdges);
-            }
-
-            if (points.Count > 2 && data.Close.Equals("TRUE", System.StringComparison.OrdinalIgnoreCase))
-            {
-                AddGraphEdge(points[points.Count - 1], points[0], degrees, candidates, endpoints, existingEdges);
-            }
-        }
-        else if (data.Name == "Arc")
-        {
-            AddGraphEdge(
-                GetArcPoint(new Vector2(data.CentorPointX, data.CentorPointY), data.Radius, data.StartDegree),
-                GetArcPoint(new Vector2(data.CentorPointX, data.CentorPointY), data.Radius, data.StartDegree + data.TotalAngle),
-                degrees,
-                candidates,
-                endpoints,
-                existingEdges);
-        }
-        else if (data.Name == "Ellipse")
-        {
-            float totalAngle = GetEllipseTotalAngle(data);
-            if (Mathf.Abs(Mathf.Abs(totalAngle) - FullAngle) > 0.1f)
-            {
-                AddGraphEdge(
-                    GetEllipsePoint(data, data.StartDegree),
-                    GetEllipsePoint(data, data.StartDegree + totalAngle),
-                    degrees,
-                    candidates,
-                    endpoints,
-                    existingEdges);
-            }
-        }
-    }
-
-    private void AddGraphEdge(
-        Vector2 start,
-        Vector2 end,
-        Dictionary<string, int> degrees,
-        List<Vector2> candidates,
-        List<CadGraphEndpoint> endpoints,
-        HashSet<string> existingEdges)
-    {
-        if ((end - start).sqrMagnitude <= Mathf.Epsilon)
-        {
-            return;
-        }
-
-        IncrementDegree(start, degrees);
-        IncrementDegree(end, degrees);
-        AddCandidate(start, candidates);
-        AddCandidate(end, candidates);
-        endpoints.Add(new CadGraphEndpoint(start, end));
-        endpoints.Add(new CadGraphEndpoint(end, start));
-        existingEdges.Add(GetEdgeKey(start, end));
-    }
-
-    private bool TryFindNearestTrianglePoint(CadGraphEndpoint endpoint, List<Vector2> candidates, HashSet<string> existingEdges, out Vector2 target)
-    {
-        target = Vector2.zero;
-        float tolerance = GetConnectionTolerance();
-        float bestDistance = float.PositiveInfinity;
-
-        foreach (var candidate in candidates)
-        {
-            if ((candidate - endpoint.Point).sqrMagnitude <= tolerance * tolerance)
-            {
-                continue;
-            }
-
-            if ((candidate - endpoint.ConnectedPoint).sqrMagnitude <= tolerance * tolerance)
-            {
-                continue;
-            }
-
-            if (existingEdges.Contains(GetEdgeKey(endpoint.Point, candidate)))
-            {
-                continue;
-            }
-
-            float distance = Vector2.Distance(endpoint.Point, candidate);
-            if (nearestTriangleMaxDistance > 0f && distance > nearestTriangleMaxDistance)
-            {
-                continue;
-            }
-
-            if (IsDegenerateTriangle(endpoint.Point, endpoint.ConnectedPoint, candidate))
-            {
-                continue;
-            }
-
-            if (distance < bestDistance)
-            {
-                bestDistance = distance;
-                target = candidate;
-            }
-        }
-
-        return bestDistance < float.PositiveInfinity;
-    }
-
-    private void DrawTriangle(Vector2 a, Vector2 b, Vector2 c)
-    {
-        if (IsDegenerateTriangle(a, b, c))
-        {
-            return;
-        }
-
-        Vector3 worldA = ToWorldPoint(a);
-        Vector3 worldB = ToWorldPoint(b);
-        Vector3 worldC = ToWorldPoint(c);
-        int baseIdx = vertices.Count;
-
-        vertices.Add(worldA);
-        vertices.Add(worldB);
-        vertices.Add(worldC);
-
-        Vector3 normal = Vector3.Cross(worldB - worldA, worldC - worldA);
-        if (normal.y >= 0f)
-        {
-            triangles.Add(baseIdx);
-            triangles.Add(baseIdx + 1);
-            triangles.Add(baseIdx + 2);
-        }
-        else
-        {
-            triangles.Add(baseIdx);
-            triangles.Add(baseIdx + 2);
-            triangles.Add(baseIdx + 1);
-        }
-    }
-
-    private bool IsDegenerateTriangle(Vector2 a, Vector2 b, Vector2 c)
-    {
-        float area = Mathf.Abs((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
-        return area <= GetConnectionTolerance();
-    }
-
-    private List<Vector2> GetPolylinePoints(MapData data)
-    {
-        var points = new List<Vector2>(3);
-        GetPolylinePoints(data, points);
-        return points;
-    }
-
     private void GetPolylinePoints(MapData data, List<Vector2> points)
     {
         points.Clear();
@@ -1072,71 +1138,6 @@ public class MapGenerator : MonoBehaviour
         {
             points.Add(point);
         }
-    }
-
-    private Vector2 GetArcPoint(Vector2 center, float radius, float angle)
-    {
-        float radians = angle * Mathf.Deg2Rad;
-        return new Vector2(
-            center.x + Mathf.Cos(radians) * radius,
-            center.y + Mathf.Sin(radians) * radius);
-    }
-
-    private Vector2 GetEllipsePoint(MapData data, float angle)
-    {
-        Vector2 center = new Vector2(data.CentorPointX, data.CentorPointY);
-        Vector2 majorVector = new Vector2(data.MajorVectorX, data.MajorVectorY);
-        Vector2 minorVector = new Vector2(data.MinorVectorX, data.MinorVectorY);
-        Vector2 majorAxis = majorVector.sqrMagnitude > Mathf.Epsilon ? majorVector.normalized * data.MajorRadius : Vector2.right * data.MajorRadius;
-        Vector2 minorAxis = minorVector.sqrMagnitude > Mathf.Epsilon ? minorVector.normalized * data.MinorRadius : Vector2.up * data.MinorRadius;
-        float radians = angle * Mathf.Deg2Rad;
-        return center + majorAxis * Mathf.Cos(radians) + minorAxis * Mathf.Sin(radians);
-    }
-
-    private void IncrementDegree(Vector2 point, Dictionary<string, int> degrees)
-    {
-        string key = GetPointKey(point);
-        degrees.TryGetValue(key, out int count);
-        degrees[key] = count + 1;
-    }
-
-    private void AddCandidate(Vector2 point, List<Vector2> candidates)
-    {
-        if (point != Vector2.zero)
-        {
-            candidates.Add(point);
-        }
-    }
-
-    private string GetPointKey(Vector2 point)
-    {
-        float tolerance = GetConnectionTolerance();
-        int x = Mathf.RoundToInt(point.x / tolerance);
-        int y = Mathf.RoundToInt(point.y / tolerance);
-        return $"{x}:{y}";
-    }
-
-    private string GetEdgeKey(Vector2 a, Vector2 b)
-    {
-        string aKey = GetPointKey(a);
-        string bKey = GetPointKey(b);
-        return string.CompareOrdinal(aKey, bKey) <= 0 ? $"{aKey}|{bKey}" : $"{bKey}|{aKey}";
-    }
-
-    private float GetConnectionTolerance()
-    {
-        return Mathf.Max(openEndpointTolerance, 0.001f);
-    }
-
-    private bool IsConnectionCandidateLayer(string layerName)
-    {
-        return !skipAnnotationLayers || !IsAnnotationLayer(layerName);
-    }
-
-    private bool IsCollisionLayer(string layerName)
-    {
-        return string.Equals(layerName, LineLayerName, System.StringComparison.OrdinalIgnoreCase)
-            || string.Equals(layerName, TestLayerName, System.StringComparison.OrdinalIgnoreCase);
     }
 
     private float GetLineWidth(MapData data)

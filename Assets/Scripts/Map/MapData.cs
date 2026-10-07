@@ -35,6 +35,10 @@ public class MapData
     public int Value => value;
 
     [SerializeField]
+    private string text;
+    public string Text => text;
+
+    [SerializeField]
     private float tilt;
     public float Tilt => tilt;
 
@@ -237,7 +241,8 @@ public class MapData
         float globalWidth,
         string associative,
         float radius,
-        float totalAngle)
+        float totalAngle,
+        string text = "")
     {
         this.index = index;
         this.name = name;
@@ -247,6 +252,7 @@ public class MapData
         this.pos_z = posZ;
         this.rotation = rotation;
         this.value = value;
+        this.text = text;
         this.tilt = tilt;
         this.height = height;
         this.thickness = thickness;
