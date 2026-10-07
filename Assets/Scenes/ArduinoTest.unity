@@ -244,8 +244,12 @@ MonoBehaviour:
   baudRate: 115200
   autoConnect: 1
   dtrEnable: 1
-  isReading: 0
-  disconnectRequested: 0
+  serialMessageReceived:
+    m_PersistentCalls:
+      m_Calls: []
+  pinStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!4 &1686474341
 Transform:
   m_ObjectHideFlags: 0
