@@ -901,6 +901,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   carController: {fileID: 616720448}
+  engineAction: {fileID: -1519231324228506654, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  hazardAction: {fileID: -2549083310771565125, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  leftSignalAction: {fileID: 97103764840966587, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  rightSignalAction: {fileID: -3927716149363638629, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  headlightAction: {fileID: 6440010828137185002, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  highBeamAction: {fileID: 2200575890040243128, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   engineIndicator: {fileID: 0}
   leftSignal: {fileID: 1598244095}
   rightSignal: {fileID: 1598244094}
@@ -1756,6 +1762,10 @@ PrefabInstance:
       propertyPath: sweepAngle
       value: 150
       objectReference: {fileID: 0}
+    - target: {fileID: 356236375518494720, guid: d06e6f3053e2be8499bd98f26a8ee29e, type: 3}
+      propertyPath: wiperAction
+      value: 
+      objectReference: {fileID: -6014846175484236648, guid: 052faaac586de48259a63d0c4782560b, type: 3}
     - target: {fileID: 356236375518494720, guid: d06e6f3053e2be8499bd98f26a8ee29e, type: 3}
       propertyPath: leftDirection
       value: -1

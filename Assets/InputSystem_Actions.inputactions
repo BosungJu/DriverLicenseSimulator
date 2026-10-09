@@ -548,6 +548,69 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
+                },
+                {
+                    "name": "Engine",
+                    "type": "Button",
+                    "id": "14b61318-85f1-4cd1-92f9-fac8c18f6e17",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Hazard",
+                    "type": "Button",
+                    "id": "13140a54-b207-4dd8-a0fb-e1cbb4d3dda9",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "LeftSignal",
+                    "type": "Button",
+                    "id": "64cd042b-a8f6-4958-96d3-e388e9426b52",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "RightSignal",
+                    "type": "Button",
+                    "id": "65faac46-9a02-425f-a5e9-dae5dd9f1d60",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Headlight",
+                    "type": "Button",
+                    "id": "ef4a069b-a3f9-44ca-a836-4b470a12f77c",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "HighBeam",
+                    "type": "Button",
+                    "id": "a3461cb5-3ddf-4da9-b451-2fa5ecd264be",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Wiper",
+                    "type": "Button",
+                    "id": "d8b287cd-de2d-4467-ba79-64cb2302b7e4",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -581,6 +644,83 @@
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Gear",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "654f6c92-fb94-4bd1-acf8-ba3c48148ab1",
+                    "path": "<Keyboard>/r",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "Engine",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "a687d52d-c8c5-4ed3-9beb-8c702b5ced3d",
+                    "path": "<Keyboard>/f",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "Hazard",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "87bd1a70-4c15-4e5e-aaf6-4ceded50f1e1",
+                    "path": "<Keyboard>/q",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "LeftSignal",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "778c4288-a042-4a91-bbac-7cc98f2dc734",
+                    "path": "<Keyboard>/e",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "RightSignal",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "ac992dce-4339-4dfb-9645-b69da7acf2fa",
+                    "path": "<Keyboard>/t",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "Headlight",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "6cbf5650-7751-4597-8e6e-8681f83b257b",
+                    "path": "<Keyboard>/y",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "HighBeam",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "a2463b5f-4dfa-4da6-9e6e-38d611160628",
+                    "path": "<Keyboard>/v",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "Wiper",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

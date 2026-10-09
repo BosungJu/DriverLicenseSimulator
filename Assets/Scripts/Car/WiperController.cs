@@ -1,7 +1,10 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class WiperController : MonoBehaviour
 {
+    [Header("Input System 입력")]
+    public InputActionReference wiperAction;
     [Header("회전 중심")]
     public Transform leftPivot;
     public Transform rightPivot;
@@ -24,7 +27,21 @@ public class WiperController : MonoBehaviour
     private Quaternion rightStartRotation;
 
     private const float FullCycle = Mathf.PI * 2f;
+    void OnEnable()
+    {
+        if (wiperAction != null && wiperAction.action != null)
+        {
+            wiperAction.action.Enable();
+        }
+    }
 
+    void OnDisable()
+    {
+        if (wiperAction != null && wiperAction.action != null)
+        {
+            wiperAction.action.Disable();
+        }
+    }
     void Start()
     {
         if (leftPivot != null)
@@ -36,9 +53,12 @@ public class WiperController : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.V))
-            isWiping = !isWiping;
-
+        if (wiperAction != null
+        && wiperAction.action != null
+        && wiperAction.action.WasPressedThisFrame())
+    {
+        isWiping = !isWiping;
+}
         // 끈 경우에도 진행 중인 왕복은 끝까지 마무리
         if (isWiping || phase > 0f)
         {
