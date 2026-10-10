@@ -1,11 +1,19 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class VehicleSystems : MonoBehaviour
 {
     [Header("연결")]
     public CarController carController;      // 시동 꺼지면 주행 막기용 (선택)
+    [Header("Input System 입력")]
+    public InputActionReference engineAction;
+    public InputActionReference hazardAction;
+    public InputActionReference leftSignalAction;
+    public InputActionReference rightSignalAction;
+    public InputActionReference headlightAction;
+    public InputActionReference highBeamAction;
 
     [Header("UI 표시등 (GameObject)")]
     public GameObject engineIndicator;
@@ -25,7 +33,52 @@ public class VehicleSystems : MonoBehaviour
     bool engineOn, hazardOn, leftOn, rightOn, headlightOn, highBeamOn;
     float blinkTimer; bool blinkState;
     bool signalArmed;   // 깜빡이 자동취소용 (핸들이 한 번 꺾였는지)
+    void OnEnable()
+    {
+        SetInputEnabled(true);
+    }
 
+    void OnDisable()
+    {
+        SetInputEnabled(false);
+    }
+
+    void SetInputEnabled(bool enabled)
+    {
+        InputActionReference[] references =
+        {
+            engineAction,
+            hazardAction,
+            leftSignalAction,
+            rightSignalAction,
+            headlightAction,
+            highBeamAction
+        };
+
+        foreach (InputActionReference reference in references)
+        {
+            if (reference == null || reference.action == null)
+            {
+                continue;
+            }
+
+            if (enabled)
+            {
+                reference.action.Enable();
+            }
+            else
+            {
+                reference.action.Disable();
+            }
+        }
+    }
+
+    bool WasPressed(InputActionReference reference)
+    {
+        return reference != null
+            && reference.action != null
+            && reference.action.WasPressedThisFrame();
+    }
     void Update()
     {
         HandleInput();
@@ -36,46 +89,66 @@ public class VehicleSystems : MonoBehaviour
 
     void HandleInput()
     {
-        // 시동(R) — 언제나 토글
-        if (Input.GetKeyDown(KeyCode.R))
+        // 시동
+        if (WasPressed(engineAction))
         {
             engineOn = !engineOn;
-            if (!engineOn) TurnAllOff();     // 시동 끄면 비상등 제외 다 꺼짐
+
+            if (!engineOn)
+            {
+                TurnAllOff();
+            }
         }
 
-        // 비상등(F) — 토글
-        if (Input.GetKeyDown(KeyCode.F))
+        // 비상등
+        if (WasPressed(hazardAction))
         {
             hazardOn = !hazardOn;
-            if (hazardOn) { leftOn = false; rightOn = false; }
+
+            if (hazardOn)
+            {
+                leftOn = false;
+                rightOn = false;
+            }
         }
 
-        if (!engineOn) return;               // 시동 꺼져 있으면 아래 입력 전부 무시
-
-        // 좌 깜빡이(Q)
-        if (Input.GetKeyDown(KeyCode.Q))
+        // 시동이 꺼져 있으면 아래 조작은 무시
+        if (!engineOn)
         {
-            leftOn = !leftOn; rightOn = false; hazardOn = false; signalArmed = false;
+            return;
         }
 
-        // 우 깜빡이(E)
-        if (Input.GetKeyDown(KeyCode.E))
+        // 좌측 방향지시등
+        if (WasPressed(leftSignalAction))
         {
-            rightOn = !rightOn; leftOn = false; hazardOn = false; signalArmed = false;
+            leftOn = !leftOn;
+            rightOn = false;
+            hazardOn = false;
+            signalArmed = false;
         }
 
-        // 전조등(T) — 켜기·끄기
-        if (Input.GetKeyDown(KeyCode.T))
+        // 우측 방향지시등
+        if (WasPressed(rightSignalAction))
+        {
+            rightOn = !rightOn;
+            leftOn = false;
+            hazardOn = false;
+            signalArmed = false;
+        }
+
+        // 전조등
+        if (WasPressed(headlightAction))
         {
             headlightOn = !headlightOn;
 
-            // 전조등을 끄면 상향등도 함께 끄기
             if (!headlightOn)
+            {
                 highBeamOn = false;
+            }
         }
 
-        // 상향등(Y) — 전조등이 켜진 상태에서만 켜기·끄기
-        if (Input.GetKeyDown(KeyCode.Y) && headlightOn)
+        // 전조등이 켜져 있을 때만 상향등 조작
+        if (WasPressed(highBeamAction) && headlightOn)
         {
             highBeamOn = !highBeamOn;
         }
