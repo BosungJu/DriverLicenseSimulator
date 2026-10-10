@@ -29,9 +29,7 @@ public class CarController : MonoBehaviour
     public float fullSteerSpeedThreshold = 22f; // 이 속도(m/s) 이상이면 최소 조향각 적용
     [Header("Systems")]
     public VehicleSystems systems;
-    float horizontalInput;
-    float verticalInput;
-    bool isBraking;
+    CarMoveInput moveInput = new CarMoveInput();
 
     float currentSteerAngle; // 현재 적용 중인 조향각
     float currentMotor; // 현재 적용 중인 모터 토크
@@ -60,16 +58,16 @@ public class CarController : MonoBehaviour
 
     void GetInput()
     {
-        horizontalInput = Input.GetAxis("Horizontal");
+        moveInput.Steering = Input.GetAxis("Horizontal");
 
-        verticalInput = Input.GetAxis("Vertical");
+        moveInput.Throttle = Input.GetAxis("Vertical");
 
-        isBraking = Input.GetKey(KeyCode.Space);
+        moveInput.IsBraking = Input.GetKey(KeyCode.Space);
     }
 
     void Move()
     {
-        float targetMotor = verticalInput * motorForce;
+        float targetMotor = moveInput.Throttle * motorForce;
 
         // 시동이 꺼져 있거나 연결이 없으면 구동 토크 차단
         if (systems == null || !systems.EngineOn)
@@ -103,7 +101,7 @@ public class CarController : MonoBehaviour
         float currentMaxSteer = Mathf.Lerp(maxSteerAngle, minSteerAngle, speedFactor);
 
         // 목표 조향각까지 steerSpeed에 맞춰 부드럽게 이동
-        float targetSteerAngle = horizontalInput * currentMaxSteer;
+        float targetSteerAngle = moveInput.Steering * currentMaxSteer;
 
         currentSteerAngle = Mathf.MoveTowards(
             currentSteerAngle,
@@ -117,14 +115,14 @@ public class CarController : MonoBehaviour
 
     void Brake()
     {
-        float brake = isBraking ? brakeForce : 0f;
+        float brake = moveInput.IsBraking ? brakeForce : 0f;
 
         frontLeftCollider.brakeTorque = brake;
         frontRightCollider.brakeTorque = brake;
         rearLeftCollider.brakeTorque = brake;
         rearRightCollider.brakeTorque = brake;
 
-        if (isBraking)
+        if (moveInput.IsBraking)
         {
             rb.linearVelocity *= 0.98f;
         }
@@ -151,6 +149,6 @@ public class CarController : MonoBehaviour
 
         wheel.position = pos;
 
-        wheel.rotation = rot * Quaternion.Euler(0, 0, 90);
+        wheel.rotation = rot;
     }
 }
