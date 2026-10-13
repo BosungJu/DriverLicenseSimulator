@@ -26,6 +26,8 @@ public class MapGenerator : MonoBehaviour
     private const string GeneratedRoutePointsName = "Generated Route Points";
     private const string GeneratedRepairsName = "Generated Open End Repairs";
     private const string GeneratedAdditionalLinesName = "Generated Additional Lines";
+    private const string GeneratedBasePlaneName = "Generated Base Plane";
+    private const string GeneratedHillSurfaceName = "Generated Hill Surface";
 
     public string mapName;
     public Mesh CurrentMesh => mesh;
@@ -276,9 +278,7 @@ public class MapGenerator : MonoBehaviour
             return;
         }
 
-        string fileName = string.IsNullOrWhiteSpace(mapName)
-            ? "GeneratedMapMesh"
-            : System.IO.Path.GetFileNameWithoutExtension(mapName);
+        string fileName = GetSaveFileBaseName("GeneratedMapMesh");
         string path = UnityEditor.EditorUtility.SaveFilePanelInProject(
             "Save Generated Map Mesh",
             $"{fileName}_Mesh",
@@ -290,10 +290,10 @@ public class MapGenerator : MonoBehaviour
             return;
         }
 
-        var combineInstances = new List<CombineInstance>();
+        var lineCombineInstances = new List<CombineInstance>();
         if (mesh.vertexCount > 0)
         {
-            combineInstances.Add(new CombineInstance { mesh = mesh });
+            lineCombineInstances.Add(new CombineInstance { mesh = mesh });
         }
 
         foreach (Transform child in transform)
@@ -302,19 +302,212 @@ public class MapGenerator : MonoBehaviour
                 && child.TryGetComponent<MeshFilter>(out var layerFilter)
                 && layerFilter.sharedMesh != null)
             {
-                combineInstances.Add(new CombineInstance { mesh = layerFilter.sharedMesh });
+                lineCombineInstances.Add(new CombineInstance { mesh = layerFilter.sharedMesh });
             }
         }
 
+        // Lines stay merged in the first sub-mesh; ground surfaces get their own sub-meshes
+        // so the saved asset can use separate materials for lines, plane, and hill.
+        Mesh lineMesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+        lineMesh.CombineMeshes(lineCombineInstances.ToArray(), true, false);
+
+        var subMeshInstances = new List<CombineInstance>();
+        var subMeshNames = new List<string>();
+        AddSubMeshInstance(subMeshInstances, subMeshNames, lineMesh, "Lines");
+        AddSubMeshInstance(subMeshInstances, subMeshNames, GetGeneratedChildMesh(GeneratedBasePlaneName), "Base Plane");
+        AddSubMeshInstance(subMeshInstances, subMeshNames, GetGeneratedChildMesh(GeneratedHillSurfaceName), "Hill Surface");
+
         Mesh meshAsset = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
-        meshAsset.CombineMeshes(combineInstances.ToArray(), true, false);
+        meshAsset.CombineMeshes(subMeshInstances.ToArray(), false, false);
         meshAsset.name = $"{fileName}_Mesh";
+        DestroyImmediate(lineMesh);
 
         path = UnityEditor.AssetDatabase.GenerateUniqueAssetPath(path);
         UnityEditor.AssetDatabase.CreateAsset(meshAsset, path);
         UnityEditor.AssetDatabase.SaveAssets();
         UnityEditor.AssetDatabase.Refresh();
-        Debug.Log($"MapGenerator: saved mesh asset to {path}");
+        Debug.Log($"MapGenerator: saved mesh asset to {path} (sub-meshes: {string.Join(", ", subMeshNames)})");
+    }
+
+    [Button]
+    public void SaveGeneratedPrefab()
+    {
+        // The mesh field is not serialized and resets on domain reload, so existing children are
+        // checked first; regenerating would discard a map loaded through SetMapFromCsvFile.
+        List<Transform> meshChildren = GetGeneratedMeshChildren();
+        if (meshChildren.Count == 0)
+        {
+            GenerateMap();
+            meshChildren = GetGeneratedMeshChildren();
+        }
+
+        if (meshChildren.Count == 0)
+        {
+            Debug.LogWarning("MapGenerator: no generated meshes to save as prefab.");
+            return;
+        }
+
+        string fileName = GetSaveFileBaseName("GeneratedMap");
+        string prefabPath = UnityEditor.EditorUtility.SaveFilePanelInProject(
+            "Save Generated Map Prefab",
+            fileName,
+            "prefab",
+            "Choose where to save the generated map prefab.");
+
+        if (string.IsNullOrEmpty(prefabPath))
+        {
+            return;
+        }
+
+        prefabPath = UnityEditor.AssetDatabase.GenerateUniqueAssetPath(prefabPath);
+        string prefabPathWithoutExtension = prefabPath.Substring(0, prefabPath.Length - ".prefab".Length);
+        string meshAssetPath = UnityEditor.AssetDatabase.GenerateUniqueAssetPath($"{prefabPathWithoutExtension}_Meshes.asset");
+
+        // Generated meshes and fallback materials live only in memory, so they are copied into
+        // a companion asset first; otherwise the prefab would keep missing references.
+        var prefabRoot = new GameObject(fileName);
+        try
+        {
+            var savedMaterials = new Dictionary<Material, Material>();
+            bool hasMeshAsset = false;
+
+            foreach (Transform sourceChild in meshChildren)
+            {
+                CopyGeneratedChildToPrefab(sourceChild, prefabRoot.transform, meshAssetPath, savedMaterials, ref hasMeshAsset);
+            }
+
+            UnityEditor.PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath, out bool isPrefabSaved);
+            if (!isPrefabSaved)
+            {
+                Debug.LogError($"MapGenerator: failed to save prefab to {prefabPath}");
+                return;
+            }
+        }
+        finally
+        {
+            DestroyImmediate(prefabRoot);
+        }
+
+        UnityEditor.AssetDatabase.SaveAssets();
+        Debug.Log($"MapGenerator: saved prefab to {prefabPath} (meshes: {meshAssetPath}, parts: {meshChildren.Count})");
+    }
+
+    private List<Transform> GetGeneratedMeshChildren()
+    {
+        var meshChildren = new List<Transform>();
+        foreach (Transform child in transform)
+        {
+            if (child.TryGetComponent<MeshFilter>(out var childFilter)
+                && childFilter.sharedMesh != null
+                && childFilter.sharedMesh.vertexCount > 0)
+            {
+                meshChildren.Add(child);
+            }
+        }
+
+        return meshChildren;
+    }
+
+    private void CopyGeneratedChildToPrefab(
+        Transform sourceChild,
+        Transform prefabRoot,
+        string meshAssetPath,
+        Dictionary<Material, Material> savedMaterials,
+        ref bool hasMeshAsset)
+    {
+        var prefabChild = new GameObject(sourceChild.name);
+        prefabChild.layer = sourceChild.gameObject.layer;
+        prefabChild.transform.SetParent(prefabRoot, false);
+        prefabChild.transform.localPosition = sourceChild.localPosition;
+        prefabChild.transform.localRotation = sourceChild.localRotation;
+        prefabChild.transform.localScale = sourceChild.localScale;
+
+        Mesh sourceMesh = sourceChild.GetComponent<MeshFilter>().sharedMesh;
+        Mesh savedMesh = Instantiate(sourceMesh);
+        savedMesh.name = sourceMesh.name;
+        SaveToMeshAsset(savedMesh, meshAssetPath, ref hasMeshAsset);
+        prefabChild.AddComponent<MeshFilter>().sharedMesh = savedMesh;
+
+        if (sourceChild.TryGetComponent<MeshRenderer>(out var sourceRenderer))
+        {
+            Material[] sourceMaterials = sourceRenderer.sharedMaterials;
+            var prefabMaterials = new Material[sourceMaterials.Length];
+            for (int i = 0; i < sourceMaterials.Length; i++)
+            {
+                prefabMaterials[i] = GetPersistentMaterial(sourceMaterials[i], meshAssetPath, savedMaterials, ref hasMeshAsset);
+            }
+
+            prefabChild.AddComponent<MeshRenderer>().sharedMaterials = prefabMaterials;
+        }
+
+        if (sourceChild.TryGetComponent<MeshCollider>(out _))
+        {
+            prefabChild.AddComponent<MeshCollider>().sharedMesh = savedMesh;
+        }
+    }
+
+    private Material GetPersistentMaterial(
+        Material sourceMaterial,
+        string meshAssetPath,
+        Dictionary<Material, Material> savedMaterials,
+        ref bool hasMeshAsset)
+    {
+        if (sourceMaterial == null || UnityEditor.EditorUtility.IsPersistent(sourceMaterial))
+        {
+            return sourceMaterial;
+        }
+
+        if (savedMaterials.TryGetValue(sourceMaterial, out Material savedMaterial))
+        {
+            return savedMaterial;
+        }
+
+        savedMaterial = new Material(sourceMaterial) { name = sourceMaterial.name };
+        SaveToMeshAsset(savedMaterial, meshAssetPath, ref hasMeshAsset);
+        savedMaterials.Add(sourceMaterial, savedMaterial);
+        return savedMaterial;
+    }
+
+    private static void SaveToMeshAsset(Object assetObject, string meshAssetPath, ref bool hasMeshAsset)
+    {
+        // The first object becomes the main asset; the rest are stored as its sub-assets.
+        if (hasMeshAsset)
+        {
+            UnityEditor.AssetDatabase.AddObjectToAsset(assetObject, meshAssetPath);
+            return;
+        }
+
+        UnityEditor.AssetDatabase.CreateAsset(assetObject, meshAssetPath);
+        hasMeshAsset = true;
+    }
+
+    private string GetSaveFileBaseName(string fallbackName)
+    {
+        return string.IsNullOrWhiteSpace(mapName)
+            ? fallbackName
+            : System.IO.Path.GetFileNameWithoutExtension(mapName);
+    }
+
+    private Mesh GetGeneratedChildMesh(string childName)
+    {
+        Transform child = transform.Find(childName);
+        if (child == null || !child.TryGetComponent<MeshFilter>(out var meshFilter))
+        {
+            return null;
+        }
+
+        return meshFilter.sharedMesh;
+    }
+
+    private static void AddSubMeshInstance(List<CombineInstance> subMeshInstances, List<string> subMeshNames, Mesh sourceMesh, string subMeshName)
+    {
+        if (sourceMesh == null || sourceMesh.vertexCount == 0)
+        {
+            return;
+        }
+
+        subMeshInstances.Add(new CombineInstance { mesh = sourceMesh });
+        subMeshNames.Add(subMeshName);
     }
 #endif
 
@@ -501,8 +694,8 @@ public class MapGenerator : MonoBehaviour
         RouteInstructionError = string.Empty;
         vertices = otherLayerVertices;
         triangles = otherLayerTriangles;
-        ClearGeneratedChild("Generated Base Plane");
-        ClearGeneratedChild("Generated Hill Surface");
+        ClearGeneratedChild(GeneratedBasePlaneName);
+        ClearGeneratedChild(GeneratedHillSurfaceName);
         ClearGeneratedChild(GeneratedLineMeshName);
         ClearGeneratedChild(GeneratedTestMeshName);
         ClearGeneratedChild(GeneratedRoutePointsName);
@@ -919,7 +1112,7 @@ public class MapGenerator : MonoBehaviour
             new Vector3(worldMax.x, planeHeight, worldMax.z)
         };
         var planeTriangles = new List<int> { 0, 1, 2, 2, 1, 3 };
-        CreateChildMesh("Generated Base Plane", "Generated Base Plane Mesh", planeVertices, planeTriangles, planeMaterial, true);
+        CreateChildMesh(GeneratedBasePlaneName, $"{GeneratedBasePlaneName} Mesh", planeVertices, planeTriangles, planeMaterial, true);
     }
 
     private void GenerateHillSurface(List<MapData> hillDataList)
@@ -955,7 +1148,7 @@ public class MapGenerator : MonoBehaviour
         }
 
         Material surfaceMaterial = hillMaterial != null ? hillMaterial : planeMaterial;
-        CreateChildMesh("Generated Hill Surface", "Generated Hill Surface Mesh", hillVertices, hillTriangles, surfaceMaterial, true);
+        CreateChildMesh(GeneratedHillSurfaceName, $"{GeneratedHillSurfaceName} Mesh", hillVertices, hillTriangles, surfaceMaterial, true);
     }
 
     private void BuildHillProfile(List<MapData> hillDataList)
