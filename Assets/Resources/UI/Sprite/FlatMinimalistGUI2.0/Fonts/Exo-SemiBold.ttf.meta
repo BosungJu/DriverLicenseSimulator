@@ -1,0 +1,30 @@
+fileFormatVersion: 2
+guid: ddc20dd68da704841981b64b7d562c98
+TrueTypeFontImporter:
+  externalObjects: {}
+  serializedVersion: 4
+  fontSize: 16
+  forceTextureCase: -2
+  characterSpacing: 0
+  characterPadding: 1
+  includeFontData: 1
+  fontName: Exo
+  fontNames:
+  - Exo
+  fallbackFontReferences:
+  - {fileID: 12800000, guid: 80c991e2c03295c44a29276e61d31146, type: 3}
+  customCharacters: 
+  fontRenderingMode: 0
+  ascentCalculationMode: 1
+  useLegacyBoundsCalculation: 0
+  shouldRoundAdvanceValue: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 194676
+  packageName: Flat Minimalist GUI / UI pack 2.0 - over 700 PNG!
+  packageVersion: 1.0
+  assetPath: Assets/Honeti/FlatMinimalistGUI2.0/Fonts/Exo-SemiBold.ttf
+  uploadId: 431586
