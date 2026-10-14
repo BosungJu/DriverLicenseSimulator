@@ -36,6 +36,12 @@ public class CarController : MonoBehaviour
 
     Rigidbody rb;
 
+    public float SteeringInput => moveInput.Steering;
+    public float ThrottleInput => moveInput.Throttle;
+    public bool IsBraking => moveInput.IsBraking;
+    public bool HasInputSample { get; private set; }
+    public float InputSampleFixedTime { get; private set; }
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -63,6 +69,8 @@ public class CarController : MonoBehaviour
         moveInput.Throttle = Input.GetAxis("Vertical");
 
         moveInput.IsBraking = Input.GetKey(KeyCode.Space);
+        InputSampleFixedTime = Time.fixedTime;
+        HasInputSample = true;
     }
 
     void Move()
