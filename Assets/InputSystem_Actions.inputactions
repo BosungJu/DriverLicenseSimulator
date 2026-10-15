@@ -526,13 +526,13 @@
                     "name": "Excel",
                     "type": "Value",
                     "id": "63aea9bd-7ebf-4e47-9b70-1f67652a11f8",
-                    "expectedControlType": "Vector2",
+                    "expectedControlType": "Axis",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
                 },
                 {
-                    "name": "Break",
+                    "name": "Handle_GyroScope",
                     "type": "Value",
                     "id": "2cea8bbf-fe5f-4a4d-b370-d89c5c2fd95b",
                     "expectedControlType": "Vector2",
@@ -544,7 +544,7 @@
                     "name": "Gear",
                     "type": "Value",
                     "id": "4d5f4893-6ea2-435b-a3cf-eb2ab18ca9b7",
-                    "expectedControlType": "Vector2",
+                    "expectedControlType": "Dpad",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
@@ -574,7 +574,7 @@
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
-                    "initialStateCheck": false
+                    "initialStateCheck": true
                 },
                 {
                     "name": "RightSignal",
@@ -583,7 +583,7 @@
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
-                    "initialStateCheck": false
+                    "initialStateCheck": true
                 },
                 {
                     "name": "Headlight",
@@ -611,13 +611,49 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+                },
+                {
+                    "name": "ParkingBrake",
+                    "type": "Button",
+                    "id": "05ebbce1-3eb1-4dfb-9f20-a658dcf55868",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Horn",
+                    "type": "Button",
+                    "id": "e0fe2dc8-ff97-4fd1-997d-35b84fdf5c9f",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
+                },
+                {
+                    "name": "SeatBelt",
+                    "type": "Button",
+                    "id": "efa662e4-948b-4fcb-a3e1-27bdaa803ba2",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
+                },
+                {
+                    "name": "Brake",
+                    "type": "Value",
+                    "id": "da049259-db7f-47b4-a7f9-c3ded738c49a",
+                    "expectedControlType": "Axis",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
                 }
             ],
             "bindings": [
                 {
                     "name": "",
                     "id": "2bc808de-0981-4062-b692-02aa6c0c01a7",
-                    "path": "<Gamepad>/rightStick",
+                    "path": "<Gamepad>/rightStick/up",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
@@ -632,7 +668,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
-                    "action": "Break",
+                    "action": "Handle_GyroScope",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },
@@ -650,10 +686,10 @@
                 {
                     "name": "",
                     "id": "654f6c92-fb94-4bd1-acf8-ba3c48148ab1",
-                    "path": "<Keyboard>/r",
+                    "path": "<Gamepad>/start",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse",
+                    "groups": ";Gamepad",
                     "action": "Engine",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -661,10 +697,10 @@
                 {
                     "name": "",
                     "id": "a687d52d-c8c5-4ed3-9beb-8c702b5ced3d",
-                    "path": "<Keyboard>/f",
+                    "path": "<Gamepad>/buttonWest",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse",
+                    "groups": ";Gamepad",
                     "action": "Hazard",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -672,10 +708,10 @@
                 {
                     "name": "",
                     "id": "87bd1a70-4c15-4e5e-aaf6-4ceded50f1e1",
-                    "path": "<Keyboard>/q",
+                    "path": "<Gamepad>/leftTrigger",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse",
+                    "groups": ";Gamepad",
                     "action": "LeftSignal",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -683,10 +719,10 @@
                 {
                     "name": "",
                     "id": "778c4288-a042-4a91-bbac-7cc98f2dc734",
-                    "path": "<Keyboard>/e",
+                    "path": "<Gamepad>/rightTrigger",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse",
+                    "groups": ";Gamepad",
                     "action": "RightSignal",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -694,10 +730,10 @@
                 {
                     "name": "",
                     "id": "ac992dce-4339-4dfb-9645-b69da7acf2fa",
-                    "path": "<Keyboard>/t",
+                    "path": "<Gamepad>/buttonEast",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse",
+                    "groups": ";Gamepad",
                     "action": "Headlight",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -705,10 +741,10 @@
                 {
                     "name": "",
                     "id": "6cbf5650-7751-4597-8e6e-8681f83b257b",
-                    "path": "<Keyboard>/y",
+                    "path": "<Gamepad>/buttonNorth",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse",
+                    "groups": ";Gamepad",
                     "action": "HighBeam",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -716,11 +752,55 @@
                 {
                     "name": "",
                     "id": "a2463b5f-4dfa-4da6-9e6e-38d611160628",
-                    "path": "<Keyboard>/v",
+                    "path": "<Gamepad>/buttonSouth",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse",
+                    "groups": ";Gamepad",
                     "action": "Wiper",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "507febf1-9964-42f5-9d75-ca204620d964",
+                    "path": "<Gamepad>/rightShoulder",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "ParkingBrake",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "b34813cb-76d9-401c-9a7b-c9486d72609a",
+                    "path": "<Gamepad>/leftStickPress",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "Horn",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "8556f35a-130e-420c-8dfd-0fe4722185e5",
+                    "path": "<Gamepad>/select",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "SeatBelt",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "dc528b0f-77ff-4156-a9df-c7488c492d0d",
+                    "path": "<Gamepad>/rightStick/down",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "Brake",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
