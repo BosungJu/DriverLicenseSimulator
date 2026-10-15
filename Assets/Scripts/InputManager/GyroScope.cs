@@ -45,10 +45,13 @@ public class GyroScope : MonoBehaviour
         SteeringInput = CalculateSteeringInput(RawInput);
     }
 
-    // 액션은 CarController의 handleAction과 공유하므로 여기서 Disable하지 않는다.
-    // (자이로가 꺼졌을 때 CarController가 handleAction으로 대체 조향할 수 있어야 한다)
     void OnDisable()
     {
+        if (HasAction)
+        {
+            steeringAction.action.Disable();
+        }
+
         // 비활성화된 동안 마지막 조향 값이 남아 차량이 계속 꺾이지 않도록 초기화
         RawInput = 0f;
         SteeringInput = 0f;
