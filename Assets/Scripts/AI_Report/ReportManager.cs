@@ -92,13 +92,19 @@ public class ReportManager : MonoBehaviour
 		}
 
 		CarController vehicleController = GetVehicleController(vehicleBody);
+		VehicleSystems vehicleSystems = vehicleController != null ? vehicleController.systems : null;
+		if (vehicleSystems != null && !vehicleSystems.isActiveAndEnabled)
+		{
+			vehicleSystems = null;
+		}
+
 		if (vehicleController != null && (!vehicleController.isActiveAndEnabled ||
 			!vehicleController.HasInputSample || vehicleController.InputSampleFixedTime != Time.fixedTime))
 		{
 			vehicleController = null;
 		}
 
-		RecordSample(vehicleBody, vehicleController, drivingTestLevel.CurrentSection.PointNumber, Time.fixedDeltaTime);
+		RecordSample(vehicleBody, vehicleController, vehicleSystems, drivingTestLevel.CurrentSection.PointNumber, Time.fixedDeltaTime);
 		recordedSeconds += Time.fixedDeltaTime;
 	}
 
@@ -129,7 +135,9 @@ public class ReportManager : MonoBehaviour
 		isExportPending = true;
 	}
 
-	private void RecordSample(Rigidbody vehicleBody, CarController vehicleController, int pointNumber, float stepSeconds)
+	// Vehicle systems toggle in Update, so a sample holds the latest state set before this physics step.
+	private void RecordSample(Rigidbody vehicleBody, CarController vehicleController, VehicleSystems vehicleSystems,
+		int pointNumber, float stepSeconds)
 	{
 		Vector3 velocity = vehicleBody.linearVelocity;
 		float forwardSpeedMps = Vector3.Dot(velocity, vehicleBody.transform.forward);
@@ -150,7 +158,14 @@ public class ReportManager : MonoBehaviour
 			HasControlInput = vehicleController != null,
 			SteeringInput = vehicleController != null ? vehicleController.SteeringInput : 0f,
 			ThrottleInput = vehicleController != null ? vehicleController.ThrottleInput : 0f,
-			IsBraking = vehicleController != null && vehicleController.IsBraking
+			IsBraking = vehicleController != null && vehicleController.IsBraking,
+			HasVehicleSystemState = vehicleSystems != null,
+			IsEngineOn = vehicleSystems != null && vehicleSystems.EngineOn,
+			IsLeftSignalOn = vehicleSystems != null && vehicleSystems.LeftSignalOn,
+			IsRightSignalOn = vehicleSystems != null && vehicleSystems.RightSignalOn,
+			IsHazardOn = vehicleSystems != null && vehicleSystems.HazardOn,
+			IsHeadlightOn = vehicleSystems != null && vehicleSystems.HeadlightOn,
+			IsHighBeamOn = vehicleSystems != null && vehicleSystems.HighBeamOn
 		});
 
 		previousForwardSpeedMps = forwardSpeedMps;
@@ -269,6 +284,10 @@ public class ReportManager : MonoBehaviour
 			if (recordedVehicleController == null)
 			{
 				Debug.LogWarning("ReportManager: CarController is missing; only physics state will be exported.", this);
+			}
+			else if (recordedVehicleController.systems == null)
+			{
+				Debug.LogWarning("ReportManager: CarController.systems is missing; vehicle system state will be blank.", this);
 			}
 		}
 

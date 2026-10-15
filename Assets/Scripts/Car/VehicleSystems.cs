@@ -203,4 +203,7 @@ public class VehicleSystems : MonoBehaviour
     public bool EngineOn => engineOn;   // CarController에서 읽기용
     public bool HeadlightOn => headlightOn;
     public bool HighBeamOn => highBeamOn;
+    public bool HazardOn => hazardOn;
+    public bool LeftSignalOn => leftOn;     // 깜빡임 위상과 무관한 켜짐 상태
+    public bool RightSignalOn => rightOn;
 }
