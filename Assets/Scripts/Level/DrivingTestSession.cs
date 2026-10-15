@@ -17,6 +17,8 @@ public class DrivingTestSession : MonoBehaviour
 
 	[Header("Restart")]
 	[SerializeField] private KeyCode restartKey = KeyCode.R;
+	[Tooltip("Optional. While its menu is open, the restart key is ignored.")]
+	[SerializeField] private MenuController menuController;
 
 	public KeyCode RestartKey => restartKey;
 	public Rigidbody VehicleRigidbody => vehicleRigidbody;
@@ -34,7 +36,8 @@ public class DrivingTestSession : MonoBehaviour
 
 	private void Update()
 	{
-		if (Input.GetKeyDown(restartKey))
+		bool isMenuOpen = menuController != null && menuController.IsMenuOpen;
+		if (!isMenuOpen && Input.GetKeyDown(restartKey))
 		{
 			RestartCourse();
 		}
