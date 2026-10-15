@@ -8,8 +8,10 @@ public class DrivingTrainingDatasetTests
 	private const float StepSeconds = 1f / SampleRateHz;
 
 	private const string ExpectedFeatureNames =
-		"[\"speed_kmh\",\"accel_mps2\",\"yaw_rate_dps\",\"steering_input\",\"throttle_input\",\"brake_applied\"," +
-		"\"engine_on\",\"left_signal_on\",\"right_signal_on\",\"hazard_on\",\"headlight_on\",\"high_beam_on\"]";
+		"[\"speed_kmh\",\"accel_mps2\",\"yaw_rate_dps\",\"steering_input\",\"throttle_input\",\"brake_input\"," +
+		"\"gear_park\",\"gear_reverse\",\"gear_neutral\",\"gear_drive\",\"parking_brake_on\"," +
+		"\"engine_on\",\"left_signal_on\",\"right_signal_on\",\"hazard_on\",\"headlight_on\",\"high_beam_on\"," +
+		"\"seat_belt_on\",\"horn_on\"]";
 
 	#region Normal Cases
 
@@ -22,13 +24,17 @@ public class DrivingTrainingDatasetTests
 		first.YawRateDegreesPerSecond = 3f;
 		first.SteeringInput = -0.25f;
 		first.ThrottleInput = 0.5f;
-		first.IsBraking = true;
+		first.BrakeInput = 1f;
 		first.IsLeftSignalOn = true;
 		first.IsHeadlightOn = true;
+		first.IsSeatBeltOn = true;
 		DrivingSample second = CreateUsableSample(1, 1);
+		second.Gear = VehicleGear.Reverse;
+		second.IsParkingBrakeOn = true;
 		DrivingSample third = CreateUsableSample(2, 2);
 		third.IsHazardOn = true;
 		third.IsHighBeamOn = true;
+		third.IsHornOn = true;
 
 		DrivingTrainingDatasetResult result = DrivingTrainingDataset.Build(new[] { first, second, third }, "run-1", null, SampleRateHz);
 
@@ -38,11 +44,11 @@ public class DrivingTrainingDatasetTests
 		Assert.AreEqual(
 			"{\"schema_version\":1,\"sample_rate_hz\":50,\"run_id\":\"run-1\",\"section_id\":1,\"start_time_s\":0.000," +
 			"\"feature_names\":" + ExpectedFeatureNames + ",\"features\":[" +
-			"[4.000,-0.500,3.000,-0.250,0.500,1,1,1,0,0,1,0]," +
-			"[0.000,0.000,0.000,0.000,0.000,0,1,0,0,0,0,0]]}",
+			"[4.000,-0.500,3.000,-0.250,0.500,1.000,0,0,0,1,0,1,1,0,0,1,0,1,0]," +
+			"[0.000,0.000,0.000,0.000,0.000,0.000,0,1,0,0,1,1,0,0,0,0,0,0,0]]}",
 			lines[0]);
 		StringAssert.Contains("\"section_id\":2,\"start_time_s\":0.040,", lines[1]);
-		StringAssert.EndsWith("\"features\":[[0.000,0.000,0.000,0.000,0.000,0,1,0,0,1,0,1]]}", lines[1]);
+		StringAssert.EndsWith("\"features\":[[0.000,0.000,0.000,0.000,0.000,0.000,0,0,0,1,0,1,0,0,1,0,1,0,1]]}", lines[1]);
 	}
 
 	[Test]
@@ -188,7 +194,7 @@ public class DrivingTrainingDatasetTests
 
 	#region Test Helpers
 
-	// A sample with every value available, engine on and all other systems off.
+	// A sample with every value available, gear D, engine on and all other systems off.
 	private static DrivingSample CreateUsableSample(int stepIndex, int pointNumber)
 	{
 		return new DrivingSample
@@ -196,6 +202,7 @@ public class DrivingTrainingDatasetTests
 			TimeSeconds = stepIndex * StepSeconds,
 			PointNumber = pointNumber,
 			HasControlInput = true,
+			Gear = VehicleGear.Drive,
 			HasVehicleSystemState = true,
 			IsEngineOn = true
 		};

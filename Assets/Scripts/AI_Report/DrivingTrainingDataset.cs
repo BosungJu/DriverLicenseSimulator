@@ -24,14 +24,6 @@ public static class DrivingTrainingDataset
 {
 	public const int SchemaVersion = 1;
 
-	// Order must match feature_names in the AI project's res/schema.example.json.
-	public static readonly IReadOnlyList<string> FeatureNames = new[]
-	{
-		"speed_kmh", "accel_mps2", "yaw_rate_dps",
-		"steering_input", "throttle_input", "brake_applied",
-		"engine_on", "left_signal_on", "right_signal_on", "hazard_on", "headlight_on", "high_beam_on"
-	};
-
 	// Intervals outside this many physics steps mean dropped (too long) or duplicated (too short) frames.
 	private const float MinSampleIntervalInSteps = 0.5f;
 	private const float MaxSampleIntervalInSteps = 1.5f;
@@ -98,8 +90,9 @@ public static class DrivingTrainingDataset
 				return false;
 			}
 
-			if (!IsFinite(sample.TimeSeconds) || sample.TimeSeconds < 0f || !IsFinite(sample.SpeedKmh) || !IsFinite(sample.LongitudinalAccelerationMps2) ||
-				!IsFinite(sample.YawRateDegreesPerSecond) || !IsFinite(sample.SteeringInput) || !IsFinite(sample.ThrottleInput))
+			if (!IsFinite(sample.TimeSeconds) || sample.TimeSeconds < 0f || !IsFinite(sample.SpeedKmh) ||
+				!IsFinite(sample.LongitudinalAccelerationMps2) || !IsFinite(sample.YawRateDegreesPerSecond) ||
+				!IsFinite(sample.SteeringInput) || !IsFinite(sample.ThrottleInput) || !IsFinite(sample.BrakeInput))
 			{
 				return false;
 			}
@@ -138,14 +131,14 @@ public static class DrivingTrainingDataset
 		jsonBuilder.Append(",\"start_time_s\":").Append(FormatContinuous(samples[startIndex].TimeSeconds));
 
 		jsonBuilder.Append(",\"feature_names\":[");
-		for (int i = 0; i < FeatureNames.Count; i++)
+		for (int i = 0; i < DrivingFeatureColumns.Names.Count; i++)
 		{
 			if (i > 0)
 			{
 				jsonBuilder.Append(',');
 			}
 
-			AppendJsonString(jsonBuilder, FeatureNames[i]);
+			AppendJsonString(jsonBuilder, DrivingFeatureColumns.Names[i]);
 		}
 
 		jsonBuilder.Append("],\"features\":[");
@@ -156,39 +149,19 @@ public static class DrivingTrainingDataset
 				jsonBuilder.Append(',');
 			}
 
-			AppendFeatureFrame(jsonBuilder, samples[i]);
+			// Same formatter as driving_log.csv, so training and session inference see identical values.
+			// Usable sections have every value available, so no blank (invalid JSON) value is written.
+			jsonBuilder.Append('[');
+			DrivingFeatureColumns.AppendValues(jsonBuilder, samples[i]);
+			jsonBuilder.Append(']');
 		}
 
 		jsonBuilder.Append("]}\n");
 	}
 
-	// Values use the same rounding as driving_log.csv so training and session inference see identical inputs.
-	private static void AppendFeatureFrame(StringBuilder jsonBuilder, DrivingSample sample)
-	{
-		jsonBuilder.Append('[')
-			.Append(FormatContinuous(sample.SpeedKmh)).Append(',')
-			.Append(FormatContinuous(sample.LongitudinalAccelerationMps2)).Append(',')
-			.Append(FormatContinuous(sample.YawRateDegreesPerSecond)).Append(',')
-			.Append(FormatContinuous(sample.SteeringInput)).Append(',')
-			.Append(FormatContinuous(sample.ThrottleInput)).Append(',')
-			.Append(FormatFlag(sample.IsBraking)).Append(',')
-			.Append(FormatFlag(sample.IsEngineOn)).Append(',')
-			.Append(FormatFlag(sample.IsLeftSignalOn)).Append(',')
-			.Append(FormatFlag(sample.IsRightSignalOn)).Append(',')
-			.Append(FormatFlag(sample.IsHazardOn)).Append(',')
-			.Append(FormatFlag(sample.IsHeadlightOn)).Append(',')
-			.Append(FormatFlag(sample.IsHighBeamOn))
-			.Append(']');
-	}
-
 	private static string FormatContinuous(float value)
 	{
 		return value.ToString("F3", CultureInfo.InvariantCulture);
-	}
-
-	private static char FormatFlag(bool value)
-	{
-		return value ? '1' : '0';
 	}
 
 	private static bool IsFinite(float value)

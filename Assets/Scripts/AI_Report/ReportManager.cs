@@ -158,14 +158,18 @@ public class ReportManager : MonoBehaviour
 			HasControlInput = vehicleController != null,
 			SteeringInput = vehicleController != null ? vehicleController.SteeringInput : 0f,
 			ThrottleInput = vehicleController != null ? vehicleController.ThrottleInput : 0f,
-			IsBraking = vehicleController != null && vehicleController.IsBraking,
+			BrakeInput = vehicleController != null ? vehicleController.BrakeInput : 0f,
+			Gear = vehicleController != null ? vehicleController.CurrentGear : VehicleGear.Park,
+			IsParkingBrakeOn = vehicleController != null && vehicleController.ParkingBrakeOn,
 			HasVehicleSystemState = vehicleSystems != null,
 			IsEngineOn = vehicleSystems != null && vehicleSystems.EngineOn,
 			IsLeftSignalOn = vehicleSystems != null && vehicleSystems.LeftSignalOn,
 			IsRightSignalOn = vehicleSystems != null && vehicleSystems.RightSignalOn,
 			IsHazardOn = vehicleSystems != null && vehicleSystems.HazardOn,
 			IsHeadlightOn = vehicleSystems != null && vehicleSystems.HeadlightOn,
-			IsHighBeamOn = vehicleSystems != null && vehicleSystems.HighBeamOn
+			IsHighBeamOn = vehicleSystems != null && vehicleSystems.HighBeamOn,
+			IsSeatBeltOn = vehicleSystems != null && vehicleSystems.SeatBeltOn,
+			IsHornOn = vehicleSystems != null && vehicleSystems.HornOn
 		});
 
 		previousForwardSpeedMps = forwardSpeedMps;

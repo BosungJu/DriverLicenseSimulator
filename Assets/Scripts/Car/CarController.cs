@@ -64,6 +64,10 @@ public class CarController : MonoBehaviour
     public VehicleGear CurrentGear => currentGear;
     public bool ParkingBrakeOn => parkingBrakeOn;
     public float SteeringInput => moveInput.Steering; // 깜빡이 자동취소 등에서 읽기용
+    public float ThrottleInput => moveInput.Throttle; // AI 리포트 기록용 (0 ~ 1)
+    public float BrakeInput => moveInput.Brake; // AI 리포트 기록용 (0 ~ 1)
+    public bool HasInputSample { get; private set; } // 입력을 한 번이라도 읽었는지
+    public float InputSampleFixedTime { get; private set; } // 마지막으로 입력을 읽은 물리 스텝 시각
 
     void OnEnable()
     {
@@ -157,6 +161,9 @@ public class CarController : MonoBehaviour
         moveInput.Throttle = HasAction(excelAction) ? Mathf.Clamp01(excelAction.action.ReadValue<float>()) : 0f;
 
         moveInput.Brake = HasAction(brakeAction) ? Mathf.Clamp01(brakeAction.action.ReadValue<float>()) : 0f;
+
+        InputSampleFixedTime = Time.fixedTime;
+        HasInputSample = true;
     }
 
     void HandleGearInput()
