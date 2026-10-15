@@ -3,7 +3,9 @@
 ## 1. 개요
     본 프로젝트는 국립 한밭대학교 컴퓨터공학과 캡스톤 디자인 프로젝트입니다.
     해당 프로젝트는 하드웨어를 연동해 조작하는 프로젝트이기에 하드웨어와는 다른 Repository입니다.
-    링크()
+    링크(https://github.com/BosungJu/DriverLicenseSimulatorArduino)
+    하드웨어는 라이즈 사업단 정책 상 구현이 불가능 해졌기에 AI와 결합한 프로젝트로 전환했습니다.
+    링크(https://github.com/BosungJu/DriveLicenseSimulatorAIModel)
 
 ## 2. 명명 규칙
 - 폴더명 : 명사
