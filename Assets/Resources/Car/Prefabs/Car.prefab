@@ -623,6 +623,7 @@ GameObject:
   - component: {fileID: 7615338521004386648}
   - component: {fileID: 3082887013724870408}
   - component: {fileID: 2806385371440590671}
+  - component: {fileID: 8321427756220147247}
   m_Layer: 0
   m_Name: Car
   m_TagString: Untagged
@@ -717,6 +718,7 @@ MonoBehaviour:
   handleAction: {fileID: -8938896639299462803, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   gearAction: {fileID: 757179488804634782, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   parkingBrakeAction: {fileID: 6254381797949251286, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  gyroScope: {fileID: 8321427756220147247}
 --- !u!114 &2806385371440590671
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -749,6 +751,22 @@ MonoBehaviour:
   - {fileID: 1615794779444491225}
   highBeams: []
   blinkInterval: 0.4
+--- !u!114 &8321427756220147247
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4134311052562100404}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f57d131bf0afb14299eefb2fbb2f0b2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  steeringAction: {fileID: -8938896639299462803, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  deadZone: 0.05
+  sensitivity: 1
+  invert: 0
 --- !u!1 &4323323014804065611
 GameObject:
   m_ObjectHideFlags: 0

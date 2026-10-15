@@ -46,6 +46,7 @@ public class CarController : MonoBehaviour
     public InputActionReference handleAction; // 핸들 (Vector2의 x축 사용, -1 ~ 1)
     public InputActionReference gearAction; // 기어 (Dpad의 위/아래 사용)
     public InputActionReference parkingBrakeAction; // 주차 브레이크 (Button, 토글)
+    public GyroScope gyroScope; // 자이로 조향 (-1 ~ 1). 비어 있으면 같은 오브젝트에서 찾고, 없으면 handleAction 사용
 
     const float GearShiftInputThreshold = 0.5f; // D-pad 위/아래가 눌렸다고 판단할 최소 입력값
     const float FullBrakeVelocityDamping = 0.98f; // 브레이크를 끝까지 밟았을 때 물리 스텝마다 곱하는 감속 비율
@@ -84,6 +85,11 @@ public class CarController : MonoBehaviour
         rb = GetComponent<Rigidbody>();
 
         rb.centerOfMass = new Vector3(0, -0.7f, 0);
+
+        if (gyroScope == null)
+        {
+            TryGetComponent(out gyroScope);
+        }
 
         WarnMissingDriveActions();
     }
@@ -155,8 +161,7 @@ public class CarController : MonoBehaviour
 
     void GetInput()
     {
-        // Handle 액션은 Vector2(leftStick)로 설정되어 있어 x축만 조향에 사용
-        moveInput.Steering = HasAction(handleAction) ? handleAction.action.ReadValue<Vector2>().x : 0f;
+        moveInput.Steering = ReadSteeringInput();
 
         moveInput.Throttle = HasAction(excelAction) ? Mathf.Clamp01(excelAction.action.ReadValue<float>()) : 0f;
 
@@ -164,6 +169,18 @@ public class CarController : MonoBehaviour
 
         InputSampleFixedTime = Time.fixedTime;
         HasInputSample = true;
+    }
+
+    // 자이로 조향을 우선 사용하고, 자이로 컴포넌트가 없거나 꺼져 있으면 Handle 액션으로 대체
+    float ReadSteeringInput()
+    {
+        if (gyroScope != null && gyroScope.isActiveAndEnabled)
+        {
+            return gyroScope.SteeringInput;
+        }
+
+        // Handle 액션은 Vector2(leftStick)로 설정되어 있어 x축만 조향에 사용
+        return HasAction(handleAction) ? handleAction.action.ReadValue<Vector2>().x : 0f;
     }
 
     void HandleGearInput()
