@@ -1031,6 +1031,11 @@ MonoBehaviour:
   steerSpeed: 80
   fullSteerSpeedThreshold: 22
   systems: {fileID: 616720451}
+  excelAction: {fileID: 6879190352543350516, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  brakeAction: {fileID: -6609865747931013289, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  handleAction: {fileID: -8938896639299462803, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  gearAction: {fileID: 757179488804634782, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  parkingBrakeAction: {fileID: 6254381797949251286, guid: 052faaac586de48259a63d0c4782560b, type: 3}
 --- !u!54 &616720449
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -1102,6 +1107,9 @@ MonoBehaviour:
   rightSignalAction: {fileID: -3927716149363638629, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   headlightAction: {fileID: 6440010828137185002, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   highBeamAction: {fileID: 2200575890040243128, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  hornAction: {fileID: -9072310699780776875, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  seatBeltAction: {fileID: -7101441816313566074, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  hornAudio: {fileID: 0}
   engineIndicator: {fileID: 0}
   leftSignal: {fileID: 1598244095}
   rightSignal: {fileID: 1598244094}
