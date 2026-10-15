@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 public class VehicleSystems : MonoBehaviour
 {
     [Header("연결")]
-    public CarController carController;      // 시동 꺼지면 주행 막기용 (선택)
+    public CarController carController;      // 핸들 조향값 읽기용 (깜빡이 자동취소). 없으면 자동취소 안 함
     [Header("Input System 입력")]
     public InputActionReference engineAction;
     public InputActionReference hazardAction;
@@ -14,6 +14,11 @@ public class VehicleSystems : MonoBehaviour
     public InputActionReference rightSignalAction;
     public InputActionReference headlightAction;
     public InputActionReference highBeamAction;
+    public InputActionReference hornAction;      // 누르고 있는 동안 경음기
+    public InputActionReference seatBeltAction;  // 누를 때마다 안전벨트 착용/해제
+
+    [Header("경음기 (선택)")]
+    public AudioSource hornAudio;           // Loop 켜진 클립 권장
 
     [Header("UI 표시등 (GameObject)")]
     public GameObject engineIndicator;
@@ -31,6 +36,7 @@ public class VehicleSystems : MonoBehaviour
 
     // ── 상태 ──
     bool engineOn, hazardOn, leftOn, rightOn, headlightOn, highBeamOn;
+    bool seatBeltOn, hornOn;
     float blinkTimer; bool blinkState;
     bool signalArmed;   // 깜빡이 자동취소용 (핸들이 한 번 꺾였는지)
     void OnEnable()
@@ -41,6 +47,10 @@ public class VehicleSystems : MonoBehaviour
     void OnDisable()
     {
         SetInputEnabled(false);
+
+        // 누른 채로 비활성화되면 루프 경음기가 계속 울리지 않도록 정리
+        hornOn = false;
+        if (hornAudio != null) hornAudio.Stop();
     }
 
     void SetInputEnabled(bool enabled)
@@ -52,7 +62,9 @@ public class VehicleSystems : MonoBehaviour
             leftSignalAction,
             rightSignalAction,
             headlightAction,
-            highBeamAction
+            highBeamAction,
+            hornAction,
+            seatBeltAction
         };
 
         foreach (InputActionReference reference in references)
@@ -82,6 +94,7 @@ public class VehicleSystems : MonoBehaviour
     void Update()
     {
         HandleInput();
+        UpdateHorn();
         UpdateBlink();
         UpdateSignalAutoCancel();
         UpdateVisuals();
@@ -110,6 +123,12 @@ public class VehicleSystems : MonoBehaviour
                 leftOn = false;
                 rightOn = false;
             }
+        }
+
+        // 안전벨트 (시동과 무관)
+        if (WasPressed(seatBeltAction))
+        {
+            seatBeltOn = !seatBeltOn;
         }
 
         // 시동이 꺼져 있으면 아래 조작은 무시
@@ -160,6 +179,35 @@ public class VehicleSystems : MonoBehaviour
         leftOn = rightOn = headlightOn = highBeamOn = false;
     }
 
+    // 경음기는 시동과 무관하게 누르고 있는 동안만 울림
+    void UpdateHorn()
+    {
+        bool isHornPressed = hornAction != null
+            && hornAction.action != null
+            && hornAction.action.IsPressed();
+
+        if (isHornPressed == hornOn)
+        {
+            return;
+        }
+
+        hornOn = isHornPressed;
+
+        if (hornAudio == null)
+        {
+            return;
+        }
+
+        if (hornOn)
+        {
+            hornAudio.Play();
+        }
+        else
+        {
+            hornAudio.Stop();
+        }
+    }
+
     void UpdateBlink()
     {
         blinkTimer += Time.deltaTime;
@@ -169,7 +217,8 @@ public class VehicleSystems : MonoBehaviour
     void UpdateSignalAutoCancel()
     {
         if (!leftOn && !rightOn) return;                 // 깜빡이 켜졌을 때만 검사
-        float steer = Input.GetAxis("Horizontal");
+        if (carController == null) return;               // 조향값을 읽을 곳이 없으면 자동취소 안 함
+        float steer = carController.SteeringInput;
         if (Mathf.Abs(steer) > 0.4f) signalArmed = true; // 핸들 꺾임
         if (signalArmed && Mathf.Abs(steer) < 0.1f)      // 다시 중앙 → 자동 끔
         {
@@ -203,7 +252,6 @@ public class VehicleSystems : MonoBehaviour
     public bool EngineOn => engineOn;   // CarController에서 읽기용
     public bool HeadlightOn => headlightOn;
     public bool HighBeamOn => highBeamOn;
-    public bool HazardOn => hazardOn;
-    public bool LeftSignalOn => leftOn;     // 깜빡임 위상과 무관한 켜짐 상태
-    public bool RightSignalOn => rightOn;
+    public bool SeatBeltOn => seatBeltOn;
+    public bool HornOn => hornOn;
 }
