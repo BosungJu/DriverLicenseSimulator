@@ -1,203 +1,73 @@
-using System;
-using System.Collections.Concurrent;
-using System.IO;
-using System.IO.Ports;
-using System.Threading;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
+// InputSystem_Actions의 액션 맵 이름과 같아야 한다 (enum 이름으로 맵을 찾는다).
+// System 맵(메뉴 키)은 다른 입력을 전환하는 키라 꺼지면 다시 켤 수 없으므로 일부러 넣지 않는다.
+public enum InputActionMapType
+{
+    UI,
+    Car
+}
+
+// Input System 액션 맵을 enum으로 지정해 켜고 끄는 역할.
+// 차량 컴포넌트(CarController, VehicleSystems, GyroScope)는 자기 OnEnable에서 액션을 다시 켜므로,
+// 끈 뒤에 생성되거나 다시 활성화된 차량이 있으면 그 이후에 DisableInput(Car)을 호출해야 한다.
 public class InputManager : MonoBehaviour
 {
-    public enum PinType
+    [Header("Input System")]
+    [SerializeField] InputActionAsset inputActions; // InputSystem_Actions
+
+    // 지정한 액션 맵이 현재 켜져 있는지
+    public bool IsInputEnabled(InputActionMapType mapType)
     {
-        LeftTurnSignal = 2,
-        RightTurnSignal = 3,
-        EngineButton = 4,
-        EmergencyButton = 5,
-        FrontLightButton = 6,
-        HighBeamButton = 7,
-        WiperButton = 8,
-        EmergencyLed = 9,
-        EngineLed = 10
+        InputActionMap actionMap = FindActionMap(mapType);
+        return actionMap != null && actionMap.enabled;
     }
 
-    const int ReadBufferSize = 1024;
-    const int ReadTimeoutMilliseconds = 100;
-    const int ThreadJoinTimeoutMilliseconds = 500;
-
-    [Header("Serial Port")]
-    [SerializeField] string portName = "COM3";
-    [SerializeField] int baudRate = 115200;
-    [SerializeField] bool autoConnect = true;
-    [SerializeField] bool dtrEnable = true;
-
-    readonly ConcurrentQueue<string> receivedInputs = new ConcurrentQueue<string>();
-    readonly ConcurrentQueue<string> serialErrors = new ConcurrentQueue<string>();
-
-    SerialPort serialPort;
-    Thread readThread;
-    volatile bool isReading;
-    volatile bool disconnectRequested;
-
-    public bool IsConnected => serialPort != null && serialPort.IsOpen;
-
-    void OnEnable()
+    public void EnableInput(InputActionMapType mapType)
     {
-        Debug.Log("[InputManager] 스크립트 실행됨");
-
-        if (autoConnect)
-        {
-            Connect();
-        }
+        SetInputEnabled(mapType, true);
     }
 
-    void Update()
+    public void DisableInput(InputActionMapType mapType)
     {
-        while (receivedInputs.TryDequeue(out string serialInput))
-        {
-            Debug.Log(serialInput, this);
-        }
-
-        while (serialErrors.TryDequeue(out string error))
-        {
-            Debug.LogError($"[InputManager] Serial port error: {error}", this);
-        }
-
-        if (disconnectRequested)
-        {
-            Disconnect();
-        }
+        SetInputEnabled(mapType, false);
     }
 
-    void OnDisable()
+    public void SetInputEnabled(InputActionMapType mapType, bool enabled)
     {
-        Disconnect();
-    }
-
-    void OnApplicationQuit()
-    {
-        Disconnect();
-    }
-
-    public void Connect()
-    {
-        if (IsConnected)
+        InputActionMap actionMap = FindActionMap(mapType);
+        if (actionMap == null)
         {
             return;
         }
 
-        Disconnect();
-
-        if (string.IsNullOrWhiteSpace(portName))
+        if (enabled)
         {
-            Debug.LogError("[InputManager] Serial port name is empty.", this);
-            return;
+            actionMap.Enable();
+        }
+        else
+        {
+            actionMap.Disable();
         }
 
-        SerialPort openedPort = null;
-
-        try
-        {
-            openedPort = new SerialPort(portName, baudRate)
-            {
-                DtrEnable = dtrEnable,
-                ReadTimeout = ReadTimeoutMilliseconds,
-                NewLine = "\n"
-            };
-            openedPort.Open();
-
-            Debug.Log(
-                $"[InputManager] {portName} 연결 성공",
-                this
-            );
-        }
-        catch (Exception exception) when (
-            exception is ArgumentException ||
-            exception is IOException ||
-            exception is InvalidOperationException ||
-            exception is UnauthorizedAccessException)
-        {
-            openedPort?.Dispose();
-            Debug.LogError($"[InputManager] Could not open {portName}: {exception.Message}", this);
-            return;
-        }
-
-        serialPort = openedPort;
-        disconnectRequested = false;
-        isReading = true;
-        readThread = new Thread(() => ReadSerialPort(openedPort))
-        {
-            IsBackground = true,
-            Name = "Arduino Serial Reader"
-        };
-        readThread.Start();
+        Debug.Log($"[InputManager] {mapType} 입력 {(enabled ? "켜짐" : "꺼짐")}", this);
     }
 
-    public void Disconnect()
+    InputActionMap FindActionMap(InputActionMapType mapType)
     {
-        isReading = false;
-        disconnectRequested = false;
-
-        SerialPort openedPort = serialPort;
-        serialPort = null;
-
-        if (openedPort != null)
+        if (inputActions == null)
         {
-            try
-            {
-                if (openedPort.IsOpen)
-                {
-                    openedPort.Close();
-                }
-            }
-            catch (IOException exception)
-            {
-                Debug.LogWarning($"[InputManager] Error while closing serial port: {exception.Message}", this);
-            }
-            finally
-            {
-                openedPort.Dispose();
-            }
+            Debug.LogWarning("[InputManager] InputActionAsset이 연결되지 않았습니다.", this);
+            return null;
         }
 
-        if (readThread != null && readThread.IsAlive)
+        InputActionMap actionMap = inputActions.FindActionMap(mapType.ToString());
+        if (actionMap == null)
         {
-            readThread.Join(ThreadJoinTimeoutMilliseconds);
+            Debug.LogWarning($"[InputManager] 액션 맵 '{mapType}'을 찾을 수 없습니다.", this);
         }
 
-        readThread = null;
+        return actionMap;
     }
-
-    void ReadSerialPort(SerialPort openedPort)
-    {
-        while (isReading && openedPort.IsOpen)
-        {
-            try
-            {
-                string serialInput = openedPort.ReadLine().Trim();
-
-                if (!string.IsNullOrEmpty(serialInput))
-                {
-                    receivedInputs.Enqueue(serialInput);
-                }
-            }
-            catch (TimeoutException)
-            {
-                continue;
-            }
-            catch (Exception exception) when (
-                exception is IOException ||
-                exception is InvalidOperationException ||
-                exception is UnauthorizedAccessException)
-            {
-                if (isReading)
-                {
-                    serialErrors.Enqueue(exception.Message);
-                    disconnectRequested = true;
-                }
-
-                break;
-            }
-        }
-    }
-
 }
