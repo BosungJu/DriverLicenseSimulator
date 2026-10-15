@@ -9,6 +9,8 @@ using UnityEngine;
 // the per-section deductions for the Python pipeline (LSTM predict -> OpenAI report) in DriveLicenseSimulatorAIModel.
 // Samples are taken every physics step, so the sample rate is 1 / Time.fixedDeltaTime and must match the
 // sample_rate_hz the LSTM checkpoint was trained with.
+// Run after CarController so control inputs belong to the same physics step as the sample.
+[DefaultExecutionOrder(100)]
 [DisallowMultipleComponent]
 public class ReportManager : MonoBehaviour
 {
@@ -16,8 +18,6 @@ public class ReportManager : MonoBehaviour
 	private const string DrivingLogFileName = "driving_log.csv";
 	private const string SectionResultFileName = "section_results.json";
 	private const string SessionFolderFormat = "yyyyMMdd_HHmmss_fff";
-	private const string DrivingLogHeader =
-		"time_s,point_number,speed_kmh,accel_mps2,yaw_rate_dps,heading_deg,pos_x,pos_z";
 
 	// Encoding.UTF8 writes a BOM, which Python's json module rejects with the plain utf-8 codec.
 	private static readonly Encoding ExportEncoding = new UTF8Encoding(false);
@@ -40,6 +40,8 @@ public class ReportManager : MonoBehaviour
 	private bool isExportPending;
 	private GameObject recordedVehicle;
 	private Rigidbody recordedVehicleRigidbody;
+	private Rigidbody inputSourceRigidbody;
+	private CarController recordedVehicleController;
 
 	public IReadOnlyList<DrivingSample> Samples => samples;
 	public string LastExportDirectory { get; private set; }
@@ -84,10 +86,25 @@ public class ReportManager : MonoBehaviour
 		Rigidbody vehicleBody = GetVehicleRigidbody();
 		if (vehicleBody == null)
 		{
+			hasPreviousSample = false;
+			recordedSeconds += Time.fixedDeltaTime;
 			return;
 		}
 
-		RecordSample(vehicleBody, drivingTestLevel.CurrentSection.PointNumber, Time.fixedDeltaTime);
+		CarController vehicleController = GetVehicleController(vehicleBody);
+		VehicleSystems vehicleSystems = vehicleController != null ? vehicleController.systems : null;
+		if (vehicleSystems != null && !vehicleSystems.isActiveAndEnabled)
+		{
+			vehicleSystems = null;
+		}
+
+		if (vehicleController != null && (!vehicleController.isActiveAndEnabled ||
+			!vehicleController.HasInputSample || vehicleController.InputSampleFixedTime != Time.fixedTime))
+		{
+			vehicleController = null;
+		}
+
+		RecordSample(vehicleBody, vehicleController, vehicleSystems, drivingTestLevel.CurrentSection.PointNumber, Time.fixedDeltaTime);
 		recordedSeconds += Time.fixedDeltaTime;
 	}
 
@@ -118,7 +135,9 @@ public class ReportManager : MonoBehaviour
 		isExportPending = true;
 	}
 
-	private void RecordSample(Rigidbody vehicleBody, int pointNumber, float stepSeconds)
+	// Vehicle systems toggle in Update, so a sample holds the latest state set before this physics step.
+	private void RecordSample(Rigidbody vehicleBody, CarController vehicleController, VehicleSystems vehicleSystems,
+		int pointNumber, float stepSeconds)
 	{
 		Vector3 velocity = vehicleBody.linearVelocity;
 		float forwardSpeedMps = Vector3.Dot(velocity, vehicleBody.transform.forward);
@@ -135,7 +154,22 @@ public class ReportManager : MonoBehaviour
 			YawRateDegreesPerSecond = vehicleBody.angularVelocity.y * Mathf.Rad2Deg,
 			HeadingDegrees = vehicleBody.rotation.eulerAngles.y,
 			PositionX = vehicleBody.position.x,
-			PositionZ = vehicleBody.position.z
+			PositionZ = vehicleBody.position.z,
+			HasControlInput = vehicleController != null,
+			SteeringInput = vehicleController != null ? vehicleController.SteeringInput : 0f,
+			ThrottleInput = vehicleController != null ? vehicleController.ThrottleInput : 0f,
+			BrakeInput = vehicleController != null ? vehicleController.BrakeInput : 0f,
+			Gear = vehicleController != null ? vehicleController.CurrentGear : VehicleGear.Park,
+			IsParkingBrakeOn = vehicleController != null && vehicleController.ParkingBrakeOn,
+			HasVehicleSystemState = vehicleSystems != null,
+			IsEngineOn = vehicleSystems != null && vehicleSystems.EngineOn,
+			IsLeftSignalOn = vehicleSystems != null && vehicleSystems.LeftSignalOn,
+			IsRightSignalOn = vehicleSystems != null && vehicleSystems.RightSignalOn,
+			IsHazardOn = vehicleSystems != null && vehicleSystems.HazardOn,
+			IsHeadlightOn = vehicleSystems != null && vehicleSystems.HeadlightOn,
+			IsHighBeamOn = vehicleSystems != null && vehicleSystems.HighBeamOn,
+			IsSeatBeltOn = vehicleSystems != null && vehicleSystems.SeatBeltOn,
+			IsHornOn = vehicleSystems != null && vehicleSystems.HornOn
 		});
 
 		previousForwardSpeedMps = forwardSpeedMps;
@@ -150,7 +184,7 @@ public class ReportManager : MonoBehaviour
 		try
 		{
 			Directory.CreateDirectory(sessionDirectory);
-			File.WriteAllText(Path.Combine(sessionDirectory, DrivingLogFileName), BuildDrivingLogCsv(), ExportEncoding);
+			File.WriteAllText(Path.Combine(sessionDirectory, DrivingLogFileName), DrivingReportCsv.Build(samples), ExportEncoding);
 
 			string sectionResultJson = JsonUtility.ToJson(BuildSectionResultFile(), true);
 			File.WriteAllText(Path.Combine(sessionDirectory, SectionResultFileName), sectionResultJson, ExportEncoding);
@@ -164,22 +198,6 @@ public class ReportManager : MonoBehaviour
 		LastExportDirectory = sessionDirectory;
 		Debug.Log($"ReportManager: Exported {samples.Count} samples and section results to {sessionDirectory}.", this);
 		ReportDataExported?.Invoke(sessionDirectory);
-	}
-
-	private string BuildDrivingLogCsv()
-	{
-		var csvBuilder = new StringBuilder();
-		csvBuilder.AppendLine(DrivingLogHeader);
-
-		foreach (DrivingSample sample in samples)
-		{
-			csvBuilder.AppendLine(string.Format(CultureInfo.InvariantCulture,
-				"{0:F3},{1},{2:F3},{3:F3},{4:F3},{5:F2},{6:F3},{7:F3}",
-				sample.TimeSeconds, sample.PointNumber, sample.SpeedKmh, sample.LongitudinalAccelerationMps2,
-				sample.YawRateDegreesPerSecond, sample.HeadingDegrees, sample.PositionX, sample.PositionZ));
-		}
-
-		return csvBuilder.ToString();
 	}
 
 	private DrivingSectionResultFile BuildSectionResultFile()
@@ -259,6 +277,25 @@ public class ReportManager : MonoBehaviour
 		}
 
 		return recordedVehicleRigidbody;
+	}
+
+	private CarController GetVehicleController(Rigidbody vehicleBody)
+	{
+		if (inputSourceRigidbody != vehicleBody)
+		{
+			inputSourceRigidbody = vehicleBody;
+			recordedVehicleController = vehicleBody.GetComponentInParent<CarController>();
+			if (recordedVehicleController == null)
+			{
+				Debug.LogWarning("ReportManager: CarController is missing; only physics state will be exported.", this);
+			}
+			else if (recordedVehicleController.systems == null)
+			{
+				Debug.LogWarning("ReportManager: CarController.systems is missing; vehicle system state will be blank.", this);
+			}
+		}
+
+		return recordedVehicleController;
 	}
 
 	private void CacheReferences()
