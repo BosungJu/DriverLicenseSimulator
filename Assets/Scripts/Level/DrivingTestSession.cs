@@ -51,10 +51,9 @@ public class DrivingTestSession : MonoBehaviour
 		}
 
 		MapRouteSection firstSection = mapGenerator.RouteSections[0];
-		BoxCollider firstPointTrigger = firstSection.GetComponent<BoxCollider>();
 
 		drivingTestLevel.ResetLevel();
-		PlaceVehicle(firstSection.transform, firstPointTrigger.bounds.min.y);
+		PlaceVehicle(GetStartPose(firstSection));
 		drivingTestLevel.EnterFirstRoutePoint(vehicleRigidbody.gameObject);
 
 		Debug.Log($"DrivingTestSession: Course restarted at Point {drivingTestLevel.CurrentPointNumber}.", this);
@@ -95,20 +94,30 @@ public class DrivingTestSession : MonoBehaviour
 		return true;
 	}
 
-	// Faces the vehicle along the route direction of the first point and clears its motion.
-	private void PlaceVehicle(Transform firstPoint, float groundHeight)
+	// World pose on the first route point, facing along the route direction.
+	// The editor setup uses it too, so the vehicle is already at the start before Play.
+	public Pose GetStartPose(MapRouteSection firstSection)
 	{
+		Transform firstPoint = firstSection.transform;
+		BoxCollider firstPointTrigger = firstSection.GetComponent<BoxCollider>();
+
 		Vector3 spawnPosition = firstPoint.position;
-		spawnPosition.y = groundHeight + spawnHeightAboveGround;
+		spawnPosition.y = firstPointTrigger.bounds.min.y + spawnHeightAboveGround;
 
 		Vector3 routeForward = Vector3.ProjectOnPlane(firstPoint.forward, Vector3.up);
 		Quaternion spawnRotation = routeForward.sqrMagnitude > Mathf.Epsilon
 			? Quaternion.LookRotation(routeForward, Vector3.up)
 			: Quaternion.identity;
 
-		vehicleRigidbody.transform.SetPositionAndRotation(spawnPosition, spawnRotation);
-		vehicleRigidbody.position = spawnPosition;
-		vehicleRigidbody.rotation = spawnRotation;
+		return new Pose(spawnPosition, spawnRotation);
+	}
+
+	// Moves the vehicle to the start pose and clears its motion.
+	private void PlaceVehicle(Pose startPose)
+	{
+		vehicleRigidbody.transform.SetPositionAndRotation(startPose.position, startPose.rotation);
+		vehicleRigidbody.position = startPose.position;
+		vehicleRigidbody.rotation = startPose.rotation;
 		vehicleRigidbody.linearVelocity = Vector3.zero;
 		vehicleRigidbody.angularVelocity = Vector3.zero;
 	}

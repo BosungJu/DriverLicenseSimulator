@@ -55,7 +55,7 @@ public class WiperController : MonoBehaviour
     {
         if (wiperAction != null
         && wiperAction.action != null
-        && wiperAction.action.WasPressedThisFrame())
+        && wiperAction.action.WasPerformedThisFrame()) // Tap 등 Interaction 반영
     {
         isWiping = !isWiping;
 }

@@ -2,7 +2,7 @@ using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// 위에서부터 P → R → N → D 순서 (D-pad 위로 올리면 P 쪽, 내리면 D 쪽)
+// P → R → N → D 순서 (LB를 누르면 P 쪽, RB를 누르면 D 쪽으로 한 칸)
 public enum VehicleGear
 {
     Park,
@@ -43,11 +43,11 @@ public class CarController : MonoBehaviour
     [Header("Input System 입력")]
     public InputActionReference excelAction; // 가속 페달 (Axis, 0 ~ 1)
     public InputActionReference brakeAction; // 브레이크 페달 (Axis, 0 ~ 1)
-    public InputActionReference gearAction; // 기어 (Dpad의 위/아래 사용)
-    public InputActionReference parkingBrakeAction; // 주차 브레이크 (Button, 토글)
+    public InputActionReference gearAction; // 기어 (1D Axis: LB = -1, RB = 1)
+    public InputActionReference parkingBrakeAction; // 주차 브레이크 (Button, 토글. Hold 등 Interaction 반영)
     public GyroScope gyroScope; // 핸들 (-1 ~ 1). 조향은 항상 GyroScope가 가공한 값만 사용. 비어 있으면 같은 오브젝트에서 찾는다
 
-    const float GearShiftInputThreshold = 0.5f; // D-pad 위/아래가 눌렸다고 판단할 최소 입력값
+    const float GearShiftInputThreshold = 0.5f; // 기어 버튼이 눌렸다고 판단할 최소 입력값
     const float FullBrakeVelocityDamping = 0.98f; // 브레이크를 끝까지 밟았을 때 물리 스텝마다 곱하는 감속 비율
 
     CarMoveInput moveInput = new CarMoveInput();
@@ -57,7 +57,7 @@ public class CarController : MonoBehaviour
 
     VehicleGear currentGear = VehicleGear.Park;
     bool parkingBrakeOn;
-    int lastGearShiftDirection; // 직전 프레임의 D-pad 방향. 누르고 있는 동안 한 칸만 이동하도록 비교용
+    int lastGearShiftDirection; // 직전 프레임의 기어 입력 방향. 누르고 있는 동안 한 칸만 이동하도록 비교용
 
     Rigidbody rb;
 
@@ -186,6 +186,13 @@ public class CarController : MonoBehaviour
     void HandleGearInput()
     {
         int shiftDirection = ReadGearShiftDirection();
+
+        // LB/RB를 동시에 누르면 축 값이 0이 된다. 이때 중립으로 처리하면 한쪽을 뗄 때 다시 변속되므로 직전 방향을 유지
+        if (shiftDirection == 0 && IsAnyGearButtonHeld())
+        {
+            return;
+        }
+
         bool isNewShift = shiftDirection != 0 && shiftDirection != lastGearShiftDirection;
 
         lastGearShiftDirection = shiftDirection;
@@ -198,7 +205,7 @@ public class CarController : MonoBehaviour
         ShiftGear(shiftDirection);
     }
 
-    // D-pad 위 = -1 (P 쪽), 아래 = 1 (D 쪽), 중립 = 0
+    // LB = -1 (P 쪽), RB = 1 (D 쪽), 중립 또는 동시 입력 = 0
     int ReadGearShiftDirection()
     {
         if (!HasAction(gearAction))
@@ -206,19 +213,37 @@ public class CarController : MonoBehaviour
             return 0;
         }
 
-        float verticalInput = gearAction.action.ReadValue<Vector2>().y;
+        float shiftInput = gearAction.action.ReadValue<float>();
 
-        if (verticalInput >= GearShiftInputThreshold)
-        {
-            return -1;
-        }
-
-        if (verticalInput <= -GearShiftInputThreshold)
+        if (shiftInput >= GearShiftInputThreshold)
         {
             return 1;
         }
 
+        if (shiftInput <= -GearShiftInputThreshold)
+        {
+            return -1;
+        }
+
         return 0;
+    }
+
+    bool IsAnyGearButtonHeld()
+    {
+        if (!HasAction(gearAction))
+        {
+            return false;
+        }
+
+        foreach (InputControl gearControl in gearAction.action.controls)
+        {
+            if (gearControl.IsPressed())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     void ShiftGear(int shiftDirection)
@@ -238,7 +263,8 @@ public class CarController : MonoBehaviour
 
     void HandleParkingBrakeInput()
     {
-        if (!HasAction(parkingBrakeAction) || !parkingBrakeAction.action.WasPressedThisFrame())
+        // WasPressedThisFrame은 Interaction을 무시하므로 Hold가 끝까지 유지됐을 때만 반응하도록 Performed 기준으로 읽는다
+        if (!HasAction(parkingBrakeAction) || !parkingBrakeAction.action.WasPerformedThisFrame())
         {
             return;
         }

@@ -526,7 +526,7 @@
                     "name": "Excel",
                     "type": "Value",
                     "id": "63aea9bd-7ebf-4e47-9b70-1f67652a11f8",
-                    "expectedControlType": "Axis",
+                    "expectedControlType": "Analog",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
@@ -544,7 +544,7 @@
                     "name": "Gear",
                     "type": "Value",
                     "id": "4d5f4893-6ea2-435b-a3cf-eb2ab18ca9b7",
-                    "expectedControlType": "Dpad",
+                    "expectedControlType": "Axis",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
@@ -595,15 +595,6 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "HighBeam",
-                    "type": "Button",
-                    "id": "a3461cb5-3ddf-4da9-b451-2fa5ecd264be",
-                    "expectedControlType": "",
-                    "processors": "",
-                    "interactions": "",
-                    "initialStateCheck": false
-                },
-                {
                     "name": "Wiper",
                     "type": "Button",
                     "id": "d8b287cd-de2d-4467-ba79-64cb2302b7e4",
@@ -643,7 +634,7 @@
                     "name": "Brake",
                     "type": "Value",
                     "id": "da049259-db7f-47b4-a7f9-c3ded738c49a",
-                    "expectedControlType": "Axis",
+                    "expectedControlType": "Analog",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
@@ -653,7 +644,7 @@
                 {
                     "name": "",
                     "id": "2bc808de-0981-4062-b692-02aa6c0c01a7",
-                    "path": "<Gamepad>/rightStick/up",
+                    "path": "<Gamepad>/rightTrigger",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
@@ -673,21 +664,43 @@
                     "isPartOfComposite": false
                 },
                 {
-                    "name": "",
+                    "name": "Shoulder",
+                    "id": "6f1d2c8e-3b4a-4e5f-9a7b-8c9d0e1f2a3b",
+                    "path": "1DAxis",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Gear",
+                    "isComposite": true,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "negative",
                     "id": "17fc0a2f-91fc-4e73-aafa-beea39bb9487",
-                    "path": "<Gamepad>/dpad",
+                    "path": "<Gamepad>/leftShoulder",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Gear",
                     "isComposite": false,
-                    "isPartOfComposite": false
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "positive",
+                    "id": "a130cc5c-21eb-45d8-8c30-eb7d53e951bb",
+                    "path": "<Gamepad>/rightShoulder",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "Gear",
+                    "isComposite": false,
+                    "isPartOfComposite": true
                 },
                 {
                     "name": "",
                     "id": "654f6c92-fb94-4bd1-acf8-ba3c48148ab1",
-                    "path": "<Gamepad>/start",
-                    "interactions": "",
+                    "path": "<Gamepad>/dpad/right",
+                    "interactions": "Hold",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Engine",
@@ -697,8 +710,8 @@
                 {
                     "name": "",
                     "id": "a687d52d-c8c5-4ed3-9beb-8c702b5ced3d",
-                    "path": "<Gamepad>/buttonWest",
-                    "interactions": "",
+                    "path": "<Gamepad>/dpad/up",
+                    "interactions": "Tap",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Hazard",
@@ -708,7 +721,7 @@
                 {
                     "name": "",
                     "id": "87bd1a70-4c15-4e5e-aaf6-4ceded50f1e1",
-                    "path": "<Gamepad>/leftTrigger",
+                    "path": "<Gamepad>/dpad/left",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
@@ -719,8 +732,8 @@
                 {
                     "name": "",
                     "id": "778c4288-a042-4a91-bbac-7cc98f2dc734",
-                    "path": "<Gamepad>/rightTrigger",
-                    "interactions": "",
+                    "path": "<Gamepad>/dpad/right",
+                    "interactions": "Tap",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "RightSignal",
@@ -730,7 +743,7 @@
                 {
                     "name": "",
                     "id": "ac992dce-4339-4dfb-9645-b69da7acf2fa",
-                    "path": "<Gamepad>/buttonEast",
+                    "path": "<Gamepad>/buttonWest",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
@@ -740,20 +753,9 @@
                 },
                 {
                     "name": "",
-                    "id": "6cbf5650-7751-4597-8e6e-8681f83b257b",
-                    "path": "<Gamepad>/buttonNorth",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": ";Gamepad",
-                    "action": "HighBeam",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
                     "id": "a2463b5f-4dfa-4da6-9e6e-38d611160628",
-                    "path": "<Gamepad>/buttonSouth",
-                    "interactions": "",
+                    "path": "<Gamepad>/dpad/down",
+                    "interactions": "Tap",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Wiper",
@@ -763,8 +765,8 @@
                 {
                     "name": "",
                     "id": "507febf1-9964-42f5-9d75-ca204620d964",
-                    "path": "<Gamepad>/rightShoulder",
-                    "interactions": "",
+                    "path": "<Gamepad>/dpad/down",
+                    "interactions": "Hold",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "ParkingBrake",
@@ -785,8 +787,8 @@
                 {
                     "name": "",
                     "id": "8556f35a-130e-420c-8dfd-0fe4722185e5",
-                    "path": "<Gamepad>/select",
-                    "interactions": "",
+                    "path": "<Gamepad>/dpad/up",
+                    "interactions": "Hold",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "SeatBelt",
@@ -796,7 +798,7 @@
                 {
                     "name": "",
                     "id": "dc528b0f-77ff-4156-a9df-c7488c492d0d",
-                    "path": "<Gamepad>/rightStick/down",
+                    "path": "<Gamepad>/leftTrigger",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",

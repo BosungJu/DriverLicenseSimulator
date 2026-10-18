@@ -12,8 +12,7 @@ public class VehicleSystems : MonoBehaviour
     public InputActionReference hazardAction;
     public InputActionReference leftSignalAction;
     public InputActionReference rightSignalAction;
-    public InputActionReference headlightAction;
-    public InputActionReference highBeamAction;
+    public InputActionReference headlightAction; // 누를 때마다 꺼짐 → 전조등 → 상향등 → 꺼짐 순환
     public InputActionReference hornAction;      // 누르고 있는 동안 경음기
     public InputActionReference seatBeltAction;  // 누를 때마다 안전벨트 착용/해제
 
@@ -62,7 +61,6 @@ public class VehicleSystems : MonoBehaviour
             leftSignalAction,
             rightSignalAction,
             headlightAction,
-            highBeamAction,
             hornAction,
             seatBeltAction
         };
@@ -85,11 +83,12 @@ public class VehicleSystems : MonoBehaviour
         }
     }
 
-    bool WasPressed(InputActionReference reference)
+    // WasPressedThisFrame은 Interaction을 무시하므로, 같은 키를 Tap/Hold로 나눠 쓰려면 Performed 기준으로 읽어야 한다
+    bool WasPerformed(InputActionReference reference)
     {
         return reference != null
             && reference.action != null
-            && reference.action.WasPressedThisFrame();
+            && reference.action.WasPerformedThisFrame();
     }
     void Update()
     {
@@ -103,7 +102,7 @@ public class VehicleSystems : MonoBehaviour
     void HandleInput()
     {
         // 시동
-        if (WasPressed(engineAction))
+        if (WasPerformed(engineAction))
         {
             engineOn = !engineOn;
 
@@ -114,7 +113,7 @@ public class VehicleSystems : MonoBehaviour
         }
 
         // 비상등
-        if (WasPressed(hazardAction))
+        if (WasPerformed(hazardAction))
         {
             hazardOn = !hazardOn;
 
@@ -126,7 +125,7 @@ public class VehicleSystems : MonoBehaviour
         }
 
         // 안전벨트 (시동과 무관)
-        if (WasPressed(seatBeltAction))
+        if (WasPerformed(seatBeltAction))
         {
             seatBeltOn = !seatBeltOn;
         }
@@ -138,7 +137,7 @@ public class VehicleSystems : MonoBehaviour
         }
 
         // 좌측 방향지시등
-        if (WasPressed(leftSignalAction))
+        if (WasPerformed(leftSignalAction))
         {
             leftOn = !leftOn;
             rightOn = false;
@@ -147,7 +146,7 @@ public class VehicleSystems : MonoBehaviour
         }
 
         // 우측 방향지시등
-        if (WasPressed(rightSignalAction))
+        if (WasPerformed(rightSignalAction))
         {
             rightOn = !rightOn;
             leftOn = false;
@@ -156,20 +155,28 @@ public class VehicleSystems : MonoBehaviour
         }
 
         // 전조등
-        if (WasPressed(headlightAction))
+        if (WasPerformed(headlightAction))
         {
-            headlightOn = !headlightOn;
-
-            if (!headlightOn)
-            {
-                highBeamOn = false;
-            }
+            CycleHeadlightMode();
         }
+    }
 
-        // 전조등이 켜져 있을 때만 상향등 조작
-        if (WasPressed(highBeamAction) && headlightOn)
+    // 꺼짐 → 전조등 → 상향등 → 꺼짐. 상향등 단계에서도 전조등은 켜진 상태로 유지
+    void CycleHeadlightMode()
+    {
+        if (!headlightOn)
         {
-            highBeamOn = !highBeamOn;
+            headlightOn = true;
+            highBeamOn = false;
+        }
+        else if (!highBeamOn)
+        {
+            highBeamOn = true;
+        }
+        else
+        {
+            headlightOn = false;
+            highBeamOn = false;
         }
     }
 
