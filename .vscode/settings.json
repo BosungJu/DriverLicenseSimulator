@@ -67,6 +67,6 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "DriverLicenseSimulator-car.slnx",
+    "dotnet.defaultSolution": "DriverLicenseSimulator.slnx",
     "dotnet.enableWorkspaceBasedDevelopment": false
 }

@@ -542,9 +542,9 @@
                 },
                 {
                     "name": "Gear",
-                    "type": "Value",
+                    "type": "Button",
                     "id": "4d5f4893-6ea2-435b-a3cf-eb2ab18ca9b7",
-                    "expectedControlType": "Axis",
+                    "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
@@ -664,18 +664,7 @@
                     "isPartOfComposite": false
                 },
                 {
-                    "name": "Shoulder",
-                    "id": "6f1d2c8e-3b4a-4e5f-9a7b-8c9d0e1f2a3b",
-                    "path": "1DAxis",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Gear",
-                    "isComposite": true,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "negative",
+                    "name": "",
                     "id": "17fc0a2f-91fc-4e73-aafa-beea39bb9487",
                     "path": "<Gamepad>/leftShoulder",
                     "interactions": "",
@@ -683,10 +672,10 @@
                     "groups": ";Gamepad",
                     "action": "Gear",
                     "isComposite": false,
-                    "isPartOfComposite": true
+                    "isPartOfComposite": false
                 },
                 {
-                    "name": "positive",
+                    "name": "",
                     "id": "a130cc5c-21eb-45d8-8c30-eb7d53e951bb",
                     "path": "<Gamepad>/rightShoulder",
                     "interactions": "",
@@ -694,7 +683,7 @@
                     "groups": ";Gamepad",
                     "action": "Gear",
                     "isComposite": false,
-                    "isPartOfComposite": true
+                    "isPartOfComposite": false
                 },
                 {
                     "name": "",
@@ -711,7 +700,7 @@
                     "name": "",
                     "id": "a687d52d-c8c5-4ed3-9beb-8c702b5ced3d",
                     "path": "<Gamepad>/dpad/up",
-                    "interactions": "Tap",
+                    "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Hazard",
@@ -733,7 +722,7 @@
                     "name": "",
                     "id": "778c4288-a042-4a91-bbac-7cc98f2dc734",
                     "path": "<Gamepad>/dpad/right",
-                    "interactions": "Tap",
+                    "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "RightSignal",
@@ -755,7 +744,7 @@
                     "name": "",
                     "id": "a2463b5f-4dfa-4da6-9e6e-38d611160628",
                     "path": "<Gamepad>/dpad/down",
-                    "interactions": "Tap",
+                    "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Wiper",
