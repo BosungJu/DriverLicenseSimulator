@@ -5,6 +5,7 @@ using UnityEngine;
 public class CabShake : MonoBehaviour
 {
     public Rigidbody carRb; // Car의 Rigidbody 참조
+    public DriverLook driverLook; // 우측 스틱 시점 회전 (없으면 정면 고정)
 
     [Header("흔들림 크기 (각도)")]
     public float idleShake = 0.15f; // 정차 중(저속) 기본 흔들림
@@ -34,7 +35,8 @@ public class CabShake : MonoBehaviour
         float nx = (Mathf.PerlinNoise(t, 0f) - 0.5f) * 2f;
         float ny = (Mathf.PerlinNoise(0f, t) - 0.5f) * 2f;
 
-        // 초기 회전을 기준으로 차체를 살짝 회전
-        transform.localRotation = baseRot * Quaternion.Euler(ny * shakeAmount, 0f, nx * shakeAmount);
+        // 초기 회전에 시점 회전을 더한 뒤 차체를 살짝 회전
+        Quaternion lookRot = driverLook != null ? driverLook.GetLookRotation(baseRot) : baseRot;
+        transform.localRotation = lookRot * Quaternion.Euler(ny * shakeAmount, 0f, nx * shakeAmount);
     }
 }

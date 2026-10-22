@@ -2,7 +2,7 @@ using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// P → R → N → D 순서 (LB를 누르면 P 쪽, RB를 누르면 D 쪽으로 한 칸)
+// P → R → N → D 순서 (LB를 누르면 D 쪽, RB를 누르면 P 쪽으로 한 칸)
 public enum VehicleGear
 {
     Park,
@@ -43,7 +43,7 @@ public class CarController : MonoBehaviour
     [Header("Input System 입력")]
     public InputActionReference excelAction; // 가속 페달 (Axis, 0 ~ 1)
     public InputActionReference brakeAction; // 브레이크 페달 (Axis, 0 ~ 1)
-    public InputActionReference gearAction; // 기어 (1D Axis: LB = -1, RB = 1)
+    public InputActionReference gearAction; // 기어 (1D Axis: LB = 1, RB = -1)
     public InputActionReference parkingBrakeAction; // 주차 브레이크 (Button, 토글. Hold 등 Interaction 반영)
     public GyroScope gyroScope; // 핸들 (-1 ~ 1). 조향은 항상 GyroScope가 가공한 값만 사용. 비어 있으면 같은 오브젝트에서 찾는다
 
@@ -205,7 +205,7 @@ public class CarController : MonoBehaviour
         ShiftGear(shiftDirection);
     }
 
-    // LB = -1 (P 쪽), RB = 1 (D 쪽), 중립 또는 동시 입력 = 0
+    // LB = 1 (D 쪽), RB = -1 (P 쪽), 중립 또는 동시 입력 = 0
     int ReadGearShiftDirection()
     {
         if (!HasAction(gearAction))

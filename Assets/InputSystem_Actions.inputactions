@@ -542,9 +542,9 @@
                 },
                 {
                     "name": "Gear",
-                    "type": "Button",
+                    "type": "Value",
                     "id": "4d5f4893-6ea2-435b-a3cf-eb2ab18ca9b7",
-                    "expectedControlType": "",
+                    "expectedControlType": "Axis",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
@@ -638,6 +638,15 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
+                },
+                {
+                    "name": "Look",
+                    "type": "Value",
+                    "id": "d88310b7-7428-4eb1-9367-4589384d6c72",
+                    "expectedControlType": "Vector2",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
                 }
             ],
             "bindings": [
@@ -664,18 +673,18 @@
                     "isPartOfComposite": false
                 },
                 {
-                    "name": "",
-                    "id": "17fc0a2f-91fc-4e73-aafa-beea39bb9487",
-                    "path": "<Gamepad>/leftShoulder",
+                    "name": "Shoulder",
+                    "id": "6f1d2c8e-3b4a-4e5f-9a7b-8c9d0e1f2a3b",
+                    "path": "1DAxis",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Gamepad",
+                    "groups": "",
                     "action": "Gear",
-                    "isComposite": false,
+                    "isComposite": true,
                     "isPartOfComposite": false
                 },
                 {
-                    "name": "",
+                    "name": "negative",
                     "id": "a130cc5c-21eb-45d8-8c30-eb7d53e951bb",
                     "path": "<Gamepad>/rightShoulder",
                     "interactions": "",
@@ -683,7 +692,18 @@
                     "groups": ";Gamepad",
                     "action": "Gear",
                     "isComposite": false,
-                    "isPartOfComposite": false
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "positive",
+                    "id": "17fc0a2f-91fc-4e73-aafa-beea39bb9487",
+                    "path": "<Gamepad>/leftShoulder",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "Gear",
+                    "isComposite": false,
+                    "isPartOfComposite": true
                 },
                 {
                     "name": "",
@@ -792,6 +812,17 @@
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Brake",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "ab4e2516-337b-4e16-adc5-cc5eebb93a76",
+                    "path": "<Gamepad>/rightStick",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "Look",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
