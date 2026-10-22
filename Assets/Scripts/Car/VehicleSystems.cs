@@ -110,6 +110,8 @@ public class VehicleSystems : MonoBehaviour
             {
                 TurnAllOff();
             }
+
+            Debug.Log($"[VehicleSystems] Engine {(engineOn ? "ON" : "OFF")}", this);
         }
 
         // 비상등
@@ -128,6 +130,8 @@ public class VehicleSystems : MonoBehaviour
         if (WasPerformed(seatBeltAction))
         {
             seatBeltOn = !seatBeltOn;
+
+            Debug.Log($"[VehicleSystems] SeatBelt {(seatBeltOn ? "ON" : "OFF")}", this);
         }
 
         // 시동이 꺼져 있으면 아래 조작은 무시
@@ -264,4 +268,6 @@ public class VehicleSystems : MonoBehaviour
     public bool HazardOn => hazardOn;
     public bool LeftSignalOn => leftOn;     // 깜빡임 위상과 무관한 켜짐 상태
     public bool RightSignalOn => rightOn;
+    public bool LeftSignalVisible => (leftOn || hazardOn) && blinkState;
+    public bool RightSignalVisible => (rightOn || hazardOn) && blinkState;
 }

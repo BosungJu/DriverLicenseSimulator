@@ -1,0 +1,460 @@
+{
+  "materials": [
+    {
+      "name": "Black soft dashboard",
+      "baseColor": [
+        0.16007763005392425,
+        0.17184408839511128,
+        0.18281266418082706,
+        1.0
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.3799999952316284,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "grain_normal.png",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Blue interior light strip",
+      "baseColor": [
+        0.2209163599788248,
+        0.5657284345101499,
+        0.7353569830524495,
+        1.0
+      ],
+      "metallic": 0.20000000298023224,
+      "smoothness": 0.75,
+      "transparent": false,
+      "emissionColor": [
+        0.19641910877879193,
+        0.5106170218039032,
+        0.6651850891023338,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Champagne dashboard trim",
+      "baseColor": [
+        0.6651850891023338,
+        0.634252752014024,
+        0.5748710099136345,
+        1.0
+      ],
+      "metallic": 0.6499999761581421,
+      "smoothness": 0.6699999868869781,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "grain_normal.png",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Charcoal carpet",
+      "baseColor": [
+        0.16007763005392425,
+        0.16409832546450354,
+        0.17184408839511128,
+        1.0
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.050000011920928955,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "grain_normal.png",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Cool white LED",
+      "baseColor": [
+        0.9063317593127924,
+        0.9546871607410429,
+        0.9999999999999999,
+        1.0
+      ],
+      "metallic": 0.25,
+      "smoothness": 0.8400000035762787,
+      "transparent": false,
+      "emissionColor": [
+        1.2282239454101105,
+        1.2927706624009299,
+        1.3532560461493863,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Crimson metallic clearcoat",
+      "baseColor": [
+        0.5657284345101499,
+        0.05070871606938731,
+        0.09320180648391324,
+        1.0
+      ],
+      "metallic": 0.6499999761581421,
+      "smoothness": 0.760000005364418,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.550000011920929,
+      "coatSmoothness": 0.8400000035762787
+    },
+    {
+      "name": "Dark wheel pockets",
+      "baseColor": [
+        0.23479508418617517,
+        0.2478005298726647,
+        0.2671173506206565,
+        1.0
+      ],
+      "metallic": 0.7200000286102295,
+      "smoothness": 0.7199999988079071,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Embedded cockpit LCD",
+      "baseColor": [
+        0.17184408839511128,
+        0.2209163599788248,
+        0.2827792898243003,
+        1.0
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.7800000011920929,
+      "transparent": false,
+      "emissionColor": [
+        0.701410709184914,
+        0.701410709184914,
+        0.701410709184914,
+        1
+      ],
+      "texture": "cockpit_display.png",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Leather stitching",
+      "baseColor": [
+        0.6651850891023338,
+        0.6499564513286469,
+        0.6180314265202079,
+        1.0
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.3500000238418579,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "leather_normal.png",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Machined aluminum",
+      "baseColor": [
+        0.7083696561144464,
+        0.7287318502245024,
+        0.7483790695192482,
+        1.0
+      ],
+      "metallic": 0.8999999761581421,
+      "smoothness": 0.7800000011920929,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Pale headliner",
+      "baseColor": [
+        0.6872171511475417,
+        0.6872171511475417,
+        0.6651850891023338,
+        1.0
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.1499999761581421,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Panoramic roof smoked glass",
+      "baseColor": [
+        0.17184408839511128,
+        0.2209163599788248,
+        0.2478005298726647,
+        1.0
+      ],
+      "metallic": 0.25,
+      "smoothness": 0.8499999940395355,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Polished chrome",
+      "baseColor": [
+        0.8543058250926958,
+        0.875605636235772,
+        0.896243869286423,
+        1.0
+      ],
+      "metallic": 1.0,
+      "smoothness": 0.8499999940395355,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Red polycarbonate",
+      "baseColor": [
+        0.634252752014024,
+        0.012920000613667071,
+        0.05070871606938731,
+        1.0
+      ],
+      "metallic": 0.3499999940395355,
+      "smoothness": 0.7999999970197678,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Red tail LED",
+      "baseColor": [
+        0.8266570506430202,
+        0.025840001227334142,
+        0.06100853900802363,
+        1.0
+      ],
+      "metallic": 0.15000000596046448,
+      "smoothness": 0.8199999928474426,
+      "transparent": false,
+      "emissionColor": [
+        1.0173824066585575,
+        0.04132336113145076,
+        0.0861042039119799,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Satin black polymer",
+      "baseColor": [
+        0.11207493995948536,
+        0.12835403856590433,
+        0.14733287576327567,
+        1.0
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.6399999856948853,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Tire rubber",
+      "baseColor": [
+        0.11207493995948536,
+        0.11774103874999695,
+        0.12835403856590433,
+        1.0
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.2200000286102295,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "grain_normal.png",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Warm ivory leather",
+      "baseColor": [
+        0.875605636235772,
+        0.8650420429846947,
+        0.8378605445289342,
+        1.0
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.5200000107288361,
+      "transparent": false,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "leather_normal.png",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    },
+    {
+      "name": "Window glass - transmission",
+      "baseColor": [
+        0.43,
+        0.59,
+        0.65,
+        0.2
+      ],
+      "metallic": 0.0,
+      "smoothness": 0.9299999997019768,
+      "transparent": true,
+      "emissionColor": [
+        0.0,
+        0.0,
+        0.0,
+        1
+      ],
+      "texture": "",
+      "normalTexture": "",
+      "normalStrength": 0.18,
+      "coat": 0.0,
+      "coatSmoothness": 0.9700000006705523
+    }
+  ],
+  "lods": [
+    {
+      "level": 0,
+      "renderers": 58,
+      "triangles": 324272
+    },
+    {
+      "level": 1,
+      "renderers": 58,
+      "triangles": 135825
+    },
+    {
+      "level": 2,
+      "renderers": 58,
+      "triangles": 54209
+    }
+  ],
+  "wheelbaseMeters": 2.84,
+  "source": "User-provided reference photographs; approximate geometry"
+}

@@ -1,0 +1,30 @@
+Sonata URP — Unity 6용 차량 에셋
+
+빠른 사용법
+1. URP가 설정된 Unity 6 프로젝트를 엽니다.
+2. Assets > Import Package > Custom Package에서 Sonata_URP_Unity6.unitypackage를 선택하고 Import 합니다.
+3. Assets/SonataURP/Prefabs/Sonata_URP.prefab을 씬에 끌어 놓습니다.
+4. 샘플 조명과 함께 보려면 Assets/SonataURP/Scenes/SonataPreview.unity를 엽니다. 작업 중인 씬은 먼저 저장하세요.
+
+구성
+- URP Lit 재질, 도장용 Complex Lit 재질, 투명 유리, 발광 램프, 화면 텍스처와 표면 노멀 텍스처
+- 거리별 3단계 LOD와 별도 바퀴 그룹
+- 미터 단위, 전방 +Z, 위쪽 +Y, 원점은 차량 중앙 지면, 프리팹 루트 회전 0/크기 1
+- 단순한 BoxCollider, 운전자 시점 참고용 DriverView
+- 외관과 탑승 공간. 주행 제어, WheelCollider, Rigidbody, 문 개폐 애니메이션은 포함하지 않습니다.
+
+호환성과 품질
+Unity 6000.0.72f1 / URP 17.0.4 / Windows DX11에서 가져오기, 프리팹 생성, 재질과 실제 화면 렌더를 확인했습니다. 이 패키지의 기준은 Unity 6 + URP 17이며 이전 Unity 버전과 다른 플랫폼은 검증하지 않았습니다. 프로젝트의 URP 버전이나 전역 설정을 변경하는 도구는 포함하지 않습니다.
+사진을 참고한 추정 모델이며 제조사 CAD나 실차의 정밀 복제 모델은 아닙니다. Blender의 광선 추적 렌더와 Unity의 실시간 렌더는 조명·반사·유리 표현이 다릅니다. LOD0는 세부 표현용으로 약 32만 삼각형이므로 다수 차량 또는 모바일 사용 시 대상 장치에서 성능 확인이 필요합니다. 먼 거리에서는 LOD1/2를 사용합니다. 투명 유리는 일반 알파 방식이며 물리적 굴절 셰이더는 포함하지 않습니다.
+BoxCollider는 차량 전체를 감싸는 단순 충돌 상자입니다. 실내로 이동하거나 실제 차량 물리를 구현하려면 용도에 맞게 별도의 충돌체와 제어기를 구성하세요.
+
+수정 후 재생성
+기본 사용에는 재생성이 필요 없습니다. 원본 모델과 재질 정의를 수정한 경우 Tools > Sonata URP > Rebuild Materials and Prefab으로 패키지의 재질과 프리팹을 다시 만들 수 있습니다. 이 작업은 Assets/SonataURP/Materials의 해당 재질과 Sonata_URP.prefab을 덮어쓰므로 직접 수정한 파일은 복제해 두세요. 씬에 놓은 기존 차량이나 다른 에셋은 변경하지 않습니다.
+
+참고한 Unity 공식 문서
+ModelImporter 설정: https://docs.unity.com/en-us/engine/6000.0/script-reference/unityeditor/modelimporter
+URP 렌더 검증: https://docs.unity.com/en-us/engine/6000.0/manual/cameras/urp/multiple/user-render-requests
+색 공간 처리: https://docs.unity.com/en-us/engine/6000.6/script-reference/unityengine/material/setcolor
+
+교차 검토 반영
+발광 색의 강도를 선형 공간에 적용한 뒤 sRGB로 인코딩하도록 수정했습니다. 원본 루트가 원점/기본 변환인지 확인하며 사용 중인 재질만 변환합니다. 콜라이더와 시점은 이 차량을 위한 설정이며, 실제 모델 크기와의 관계를 검증합니다. 유리는 두께가 있는 닫힌 메시여서 Back-face culling을 유지해 중복 알파 렌더링을 줄였습니다. 실내와 외관의 실제 URP 렌더를 확인합니다.

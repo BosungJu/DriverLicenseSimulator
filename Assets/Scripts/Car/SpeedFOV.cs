@@ -7,8 +7,6 @@ public class SpeedFOV : MonoBehaviour
 {
     public Rigidbody carRb; // Car의 Rigidbody
     public CinemachineVirtualCamera frontVcam; // DriverEye의 Vcam (정면)
-    public Camera leftCam; // LeftCamera
-    public Camera rightCam; // RightCamera
 
     [Header("FOV 설정")]
     public float baseFOV = 65f; // 기본값
@@ -34,10 +32,5 @@ public class SpeedFOV : MonoBehaviour
 
         // 정면 카메라는 Vcam 렌즈의 FOV를 변경
         frontVcam.m_Lens.FieldOfView = Mathf.Lerp(frontVcam.m_Lens.FieldOfView, targetFOV, lerp);
-
-        // 좌우 일반 카메라는 FOV를 직접 변경
-        leftCam.fieldOfView = Mathf.Lerp(leftCam.fieldOfView, targetFOV, lerp);
-
-        rightCam.fieldOfView = Mathf.Lerp(rightCam.fieldOfView, targetFOV, lerp);
     }
 }
