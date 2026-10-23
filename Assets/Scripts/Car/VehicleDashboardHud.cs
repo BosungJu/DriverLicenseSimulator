@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(VehicleSystems), typeof(CarController), typeof(Rigidbody))]
@@ -46,6 +47,20 @@ public class VehicleDashboardHud : MonoBehaviour
 	private static readonly VehicleGear[] GearOrder = { VehicleGear.Park, VehicleGear.Reverse, VehicleGear.Neutral, VehicleGear.Drive };
 	private static readonly string[] GearLetters = { "P", "R", "N", "D" };
 
+	[Header("모델 계기판")]
+	[SerializeField] private Canvas dashboardCanvas;
+	[SerializeField] private bool showScreenOverlay = true;
+	[Tooltip("계기판 UI를 모델 화면 표면에서 운전자 쪽으로 띄우는 거리(m). 0이면 표면과 겹쳐 Z-fighting으로 깜빡인다.")]
+	[SerializeField, Min(0f)] private float surfaceOffsetMeters = 0.002f;
+
+	private RectTransform dashboardRoot;
+	private RectTransform worldNeedle;
+	private Text worldSpeed;
+	private Text[] worldGears;
+	private RawImage worldLeftSignal;
+	private RawImage worldRightSignal;
+	private RawImage[] worldStatusIcons;
+
 	private VehicleSystems vehicleSystems;
 	private CarController carController;
 	private Rigidbody vehicleBody;
@@ -81,6 +96,8 @@ public class VehicleDashboardHud : MonoBehaviour
 		wiperController = GetComponentInChildren<WiperController>(true);
 
 		LoadDashboardTextures();
+		AssignDashboardCanvas();
+		CreateWorldDashboard();
 	}
 
 	private void LateUpdate()
@@ -99,11 +116,37 @@ public class VehicleDashboardHud : MonoBehaviour
 			displayedSpeed = roundedSpeedKmh;
 			speedLabel = roundedSpeedKmh.ToString();
 		}
+
+		UpdateWorldDashboard();
+	}
+
+	private void OnEnable()
+	{
+		if (dashboardRoot != null)
+		{
+			dashboardRoot.gameObject.SetActive(true);
+		}
+	}
+
+	private void OnDisable()
+	{
+		if (dashboardRoot != null)
+		{
+			dashboardRoot.gameObject.SetActive(false);
+		}
+	}
+
+	private void OnDestroy()
+	{
+		if (dashboardRoot != null)
+		{
+			Destroy(dashboardRoot.gameObject);
+		}
 	}
 
 	private void OnGUI()
 	{
-		if (vehicleSystems == null || carController == null || vehicleBody == null)
+		if (!showScreenOverlay || vehicleSystems == null || carController == null || vehicleBody == null)
 		{
 			return;
 		}
@@ -135,6 +178,186 @@ public class VehicleDashboardHud : MonoBehaviour
 
 		GUI.color = previousColor;
 		GUI.matrix = previousMatrix;
+	}
+
+	private void AssignDashboardCanvas()
+	{
+		if (dashboardCanvas != null)
+		{
+			return;
+		}
+
+		foreach (Canvas candidate in GetComponentsInChildren<Canvas>(true))
+		{
+			if (candidate.renderMode != RenderMode.WorldSpace)
+			{
+				continue;
+			}
+
+			for (Transform ancestor = candidate.transform; ancestor != null && ancestor != transform; ancestor = ancestor.parent)
+			{
+				if (ancestor.name.StartsWith("Display_InstrumentCluster", System.StringComparison.Ordinal))
+				{
+					dashboardCanvas = candidate;
+					return;
+				}
+			}
+		}
+	}
+
+	private void CreateWorldDashboard()
+	{
+		if (dashboardCanvas == null)
+		{
+			if (!showScreenOverlay)
+			{
+				Debug.LogWarning("[VehicleDashboardHud] Instrument Canvas not found. Assign Dashboard Canvas in the Inspector.", this);
+			}
+			return;
+		}
+
+		if (dashboardCanvas.renderMode != RenderMode.WorldSpace)
+		{
+			Debug.LogWarning("[VehicleDashboardHud] Dashboard Canvas must use World Space.", this);
+			return;
+		}
+
+		dashboardRoot = CreateWorldRect("Dashboard", dashboardCanvas.transform);
+		float panelHeight = PanelWidth / BackgroundAspectRatio;
+		dashboardRoot.sizeDelta = new Vector2(PanelWidth, panelHeight);
+		ApplySurfaceOffset();
+		Rect panelRect = new Rect(0f, 0f, PanelWidth, panelHeight);
+
+		CreateWorldImage("Background", backgroundTexture, Color.white, panelRect);
+		float gaugeSize = panelHeight * GaugeSizeRatio;
+		Vector2 gaugeCenter = GetPanelPoint(panelRect, SpeedPodCenter);
+		Rect gaugeRect = GetCenteredRect(gaugeCenter, gaugeSize, gaugeSize);
+		CreateWorldImage("GaugeArc", gaugeArcTexture, GaugeArcColor, gaugeRect);
+		worldNeedle = CreateWorldImage("GaugeNeedle", gaugeNeedleTexture, NeedleColor, gaugeRect).rectTransform;
+		worldSpeed = CreateWorldText("Speed", "0", 34, SpeedTextColor,
+			GetCenteredRect(gaugeCenter + new Vector2(0f, gaugeSize * 0.22f), gaugeSize, 40f));
+		CreateWorldText("Unit", "km/h", 12, UnitTextColor,
+			GetCenteredRect(gaugeCenter + new Vector2(0f, gaugeSize * 0.4f), gaugeSize, 16f));
+
+		worldGears = new Text[GearOrder.Length];
+		Vector2 gearCenter = GetPanelPoint(panelRect, GearPodCenter);
+		float firstLetterOffset = -GearLetterSpacing * (GearOrder.Length - 1) * 0.5f;
+		for (int i = 0; i < GearOrder.Length; i++)
+		{
+			Vector2 letterCenter = gearCenter + new Vector2(firstLetterOffset + GearLetterSpacing * i, 0f);
+			worldGears[i] = CreateWorldText("Gear_" + GearLetters[i], GearLetters[i], 24, InactiveColor,
+				GetCenteredRect(letterCenter, GearLetterSpacing, 40f));
+		}
+
+		worldLeftSignal = CreateWorldImage("LeftSignal", leftSignalTexture, InactiveColor,
+			GetCenteredRect(GetPanelPoint(panelRect, new Vector2(LeftSignalX, SignalRowY)), SignalIconSize, SignalIconSize));
+		worldRightSignal = CreateWorldImage("RightSignal", rightSignalTexture, InactiveColor,
+			GetCenteredRect(GetPanelPoint(panelRect, new Vector2(RightSignalX, SignalRowY)), SignalIconSize, SignalIconSize));
+
+		Texture2D[] statusTextures = { engineTexture, seatBeltTexture, parkingBrakeTexture, lowBeamTexture,
+			highBeamTexture, hazardTexture, hornTexture, wiperTexture };
+		worldStatusIcons = new RawImage[StatusIconCount];
+		for (int i = 0; i < StatusIconCount; i++)
+		{
+			float iconX = Mathf.Lerp(StatusRowStartX, StatusRowEndX, (float)i / (StatusIconCount - 1));
+			worldStatusIcons[i] = CreateWorldImage("Status_" + i, statusTextures[i], InactiveColor,
+				GetCenteredRect(GetPanelPoint(panelRect, new Vector2(iconX, StatusRowY)), StatusIconSize, StatusIconSize));
+		}
+
+		UpdateWorldDashboard();
+		dashboardRoot.gameObject.SetActive(isActiveAndEnabled);
+	}
+
+	// UI 그래픽은 캔버스 -Z 쪽(운전자 방향)을 향하므로 그쪽으로 띄워 표시 메쉬 앞에 그려지게 한다.
+	// 캔버스 부모(FBX 노드)의 스케일과 무관하게 미터 단위가 되도록 월드 좌표에서 계산한다.
+	private void ApplySurfaceOffset()
+	{
+		Transform canvasTransform = dashboardCanvas.transform;
+		Vector3 offsetWorldPosition = canvasTransform.position - canvasTransform.forward * surfaceOffsetMeters;
+		dashboardRoot.localPosition = canvasTransform.InverseTransformPoint(offsetWorldPosition);
+	}
+
+	private void UpdateWorldDashboard()
+	{
+		if (dashboardRoot == null || dashboardCanvas == null || vehicleSystems == null || carController == null)
+		{
+			return;
+		}
+
+		// Canvas의 월드 크기를 유지하면서 자식 UI는 픽셀 단위로 배치한다.
+		Rect canvasRect = ((RectTransform)dashboardCanvas.transform).rect;
+		float scale = Mathf.Min(canvasRect.width / PanelWidth, canvasRect.height / (PanelWidth / BackgroundAspectRatio));
+		dashboardRoot.localScale = new Vector3(scale, scale, 1f);
+		worldNeedle.localRotation = Quaternion.Euler(0f, 0f, -needleAngle);
+		worldSpeed.text = speedLabel ?? "0";
+		for (int i = 0; i < GearOrder.Length; i++)
+		{
+			worldGears[i].color = carController.CurrentGear == GearOrder[i] ? ActiveBlue : InactiveColor;
+		}
+
+		worldLeftSignal.color = vehicleSystems.LeftSignalVisible ? ActiveGreen : InactiveColor;
+		worldRightSignal.color = vehicleSystems.RightSignalVisible ? ActiveGreen : InactiveColor;
+		worldStatusIcons[0].color = vehicleSystems.EngineOn ? ActiveGreen : InactiveColor;
+		worldStatusIcons[1].color = vehicleSystems.SeatBeltOn ? ActiveGreen : InactiveColor;
+		worldStatusIcons[2].color = carController.ParkingBrakeOn ? ActiveAmber : InactiveColor;
+		worldStatusIcons[3].color = vehicleSystems.HeadlightOn && !vehicleSystems.HighBeamOn ? ActiveGreen : InactiveColor;
+		worldStatusIcons[4].color = vehicleSystems.HighBeamOn ? ActiveBlue : InactiveColor;
+		worldStatusIcons[5].color = vehicleSystems.HazardOn ? ActiveAmber : InactiveColor;
+		worldStatusIcons[6].color = vehicleSystems.HornOn ? ActiveAmber : InactiveColor;
+		worldStatusIcons[7].color = wiperController != null && wiperController.IsWiping ? ActiveGreen : InactiveColor;
+	}
+
+	private static RectTransform CreateWorldRect(string objectName, Transform parent)
+	{
+		var uiObject = new GameObject(objectName, typeof(RectTransform));
+		uiObject.layer = parent.gameObject.layer;
+		var rect = (RectTransform)uiObject.transform;
+		rect.SetParent(parent, false);
+		rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+		return rect;
+	}
+
+	private RectTransform CreateWorldElement(string objectName, Rect bounds)
+	{
+		RectTransform rect = CreateWorldRect(objectName, dashboardRoot);
+		rect.sizeDelta = bounds.size;
+		// IMGUI 원점은 좌상단, RectTransform의 Y축은 위쪽이다.
+		rect.anchoredPosition = new Vector2(bounds.center.x - PanelWidth * 0.5f,
+			PanelWidth / BackgroundAspectRatio * 0.5f - bounds.center.y);
+		return rect;
+	}
+
+	private RawImage CreateWorldImage(string objectName, Texture2D texture, Color tint, Rect bounds)
+	{
+		if (texture != null)
+		{
+			float fitScale = Mathf.Min(bounds.width / texture.width, bounds.height / texture.height);
+			bounds = GetCenteredRect(bounds.center, texture.width * fitScale, texture.height * fitScale);
+		}
+
+		RectTransform rect = CreateWorldElement(objectName, bounds);
+		var image = rect.gameObject.AddComponent<RawImage>();
+		image.texture = texture;
+		image.color = tint;
+		image.raycastTarget = false;
+		image.enabled = texture != null;
+		return image;
+	}
+
+	private Text CreateWorldText(string objectName, string label, int fontSize, Color tint, Rect bounds)
+	{
+		RectTransform rect = CreateWorldElement(objectName, bounds);
+		var text = rect.gameObject.AddComponent<Text>();
+		text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+		text.fontSize = fontSize;
+		text.fontStyle = FontStyle.Bold;
+		text.alignment = TextAnchor.MiddleCenter;
+		text.horizontalOverflow = HorizontalWrapMode.Overflow;
+		text.verticalOverflow = VerticalWrapMode.Overflow;
+		text.color = tint;
+		text.text = label;
+		text.raycastTarget = false;
+		return text;
 	}
 
 	private void LoadDashboardTextures()
