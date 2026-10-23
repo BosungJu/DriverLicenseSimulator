@@ -48,6 +48,7 @@ public class CarController : MonoBehaviour
     public GyroScope gyroScope; // 핸들 (-1 ~ 1). 조향은 항상 GyroScope가 가공한 값만 사용. 비어 있으면 같은 오브젝트에서 찾는다
 
     const float GearShiftInputThreshold = 0.5f; // 기어 버튼이 눌렸다고 판단할 최소 입력값
+	const float GearShiftMaxSpeedMetersPerSecond = 0.05f; // 물리 연산의 미세한 움직임은 정지로 간주
     const float FullBrakeVelocityDamping = 0.98f; // 브레이크를 끝까지 밟았을 때 물리 스텝마다 곱하는 감속 비율
 
     CarMoveInput moveInput = new CarMoveInput();
@@ -248,6 +249,17 @@ public class CarController : MonoBehaviour
 
     void ShiftGear(int shiftDirection)
     {
+		if (rb == null)
+		{
+			return;
+		}
+
+		if (rb.linearVelocity.sqrMagnitude > GearShiftMaxSpeedMetersPerSecond * GearShiftMaxSpeedMetersPerSecond)
+		{
+			Debug.Log("[CarController] Gear shift rejected: stop the vehicle before shifting.", this);
+			return;
+		}
+
         int nextGearIndex = Mathf.Clamp((int)currentGear + shiftDirection, (int)VehicleGear.Park, (int)VehicleGear.Drive);
         VehicleGear nextGear = (VehicleGear)nextGearIndex;
 
@@ -257,6 +269,17 @@ public class CarController : MonoBehaviour
         }
 
         currentGear = nextGear;
+
+		// 이전 기어의 토크가 새 기어에 남지 않도록 즉시 초기화한다.
+		currentMotor = 0f;
+		if (rearLeftCollider != null)
+		{
+			rearLeftCollider.motorTorque = 0f;
+		}
+		if (rearRightCollider != null)
+		{
+			rearRightCollider.motorTorque = 0f;
+		}
 
         Debug.Log($"[CarController] Gear shifted: {currentGear}", this);
     }
@@ -293,8 +316,8 @@ public class CarController : MonoBehaviour
         float gearTorqueDirection = GetGearTorqueDirection();
         float targetMotor = moveInput.Throttle * motorForce * gearTorqueDirection;
 
-        // 시동이 꺼져 있거나 연결이 없거나 P/N이면 구동 토크 즉시 차단
-        if (systems == null || !systems.EngineOn || gearTorqueDirection == 0f)
+		// 시동 OFF, P/N 또는 주차 브레이크 작동 중에는 구동 토크를 즉시 차단한다.
+		if (systems == null || !systems.EngineOn || gearTorqueDirection == 0f || parkingBrakeOn)
         {
             currentMotor = 0f;
             rearLeftCollider.motorTorque = 0f;
