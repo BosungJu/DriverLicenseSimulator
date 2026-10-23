@@ -28,6 +28,17 @@ public class MapEnvironmentSetup : EditorWindow
 	// Guards against a tiny spacing or huge margin spawning an unmanageable number of trees.
 	private const int MaxTreeCount = 5000;
 
+	private const string MountainPrefabPath = "Assets/Mountain Terrain rocks and tree/Prefab/mountain_terrain_01.prefab";
+
+	// Mountains are parented under one root so re-runs can clear and replace them as a group.
+	private const string PerimeterMountainsName = "Generated Perimeter Mountains";
+
+	// Mountains are large, so far fewer are needed than trees; this only catches a runaway width/overlap setting.
+	private const int MaxMountainCount = 300;
+
+	// Keeps adjacent mountains from stacking on top of each other when the overlap is set close to 1.
+	private const float MinMountainSpacingRatio = 0.1f;
+
 	[SerializeField] private GameObject mapPrefab;
 	[SerializeField] private Material skyboxMaterial;
 	[SerializeField] private Material outerGroundMaterial;
@@ -48,6 +59,16 @@ public class MapEnvironmentSetup : EditorWindow
 	[SerializeField] private Vector2 treeScaleRange = new Vector2(0.8f, 1.2f);
 	[SerializeField] private int treeRandomSeed = 12345;
 
+	[SerializeField] private bool placeMountains = true;
+	[SerializeField] private GameObject mountainPrefab;
+	[SerializeField] private float mountainRingOffset = 60f;
+	[SerializeField] private float mountainWidth = 150f;
+	[SerializeField] private float mountainOverlap = 0.35f;
+	[SerializeField] private Vector2 mountainHeightScaleRange = new Vector2(0.8f, 1.4f);
+	[SerializeField] private float mountainSinkDepth = 2f;
+	[SerializeField] private bool removeMountainColliders = true;
+	[SerializeField] private int mountainRandomSeed = 54321;
+
 	[SerializeField] private string newScenePath = "Assets/Scenes/Map_Dressed.unity";
 
 	private Vector2 scrollPosition;
@@ -64,6 +85,11 @@ public class MapEnvironmentSetup : EditorWindow
 		if (mapPrefab == null)
 		{
 			mapPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MapPrefabPath);
+		}
+
+		if (mountainPrefab == null)
+		{
+			mountainPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MountainPrefabPath);
 		}
 	}
 
@@ -112,6 +138,18 @@ public class MapEnvironmentSetup : EditorWindow
 		treeRandomSeed = EditorGUILayout.IntField("Random Seed", treeRandomSeed);
 
 		EditorGUILayout.Space();
+		placeMountains = EditorGUILayout.BeginToggleGroup("Perimeter Mountains", placeMountains);
+		mountainPrefab = (GameObject)EditorGUILayout.ObjectField("Mountain Prefab", mountainPrefab, typeof(GameObject), false);
+		mountainRingOffset = Mathf.Max(0f, EditorGUILayout.FloatField("Offset From Map Edge (m)", mountainRingOffset));
+		mountainWidth = Mathf.Max(1f, EditorGUILayout.FloatField("Mountain Width (m)", mountainWidth));
+		mountainOverlap = EditorGUILayout.Slider("Overlap", mountainOverlap, 0f, 1f - MinMountainSpacingRatio);
+		mountainHeightScaleRange = EditorGUILayout.Vector2Field("Height Scale Range (min/max)", mountainHeightScaleRange);
+		mountainSinkDepth = Mathf.Max(0f, EditorGUILayout.FloatField("Sink Depth (m)", mountainSinkDepth));
+		removeMountainColliders = EditorGUILayout.Toggle("Remove Colliders", removeMountainColliders);
+		mountainRandomSeed = EditorGUILayout.IntField("Random Seed", mountainRandomSeed);
+		EditorGUILayout.EndToggleGroup();
+
+		EditorGUILayout.Space();
 		EditorGUILayout.LabelField("New Scene", EditorStyles.boldLabel);
 		newScenePath = EditorGUILayout.TextField("Scene Path", newScenePath);
 
@@ -129,6 +167,11 @@ public class MapEnvironmentSetup : EditorWindow
 		if (GUILayout.Button("Plant Perimeter Trees (Current Scene)", GUILayout.Height(24f)))
 		{
 			PlantTreesInActiveScene();
+		}
+
+		if (GUILayout.Button("Place Perimeter Mountains (Current Scene)", GUILayout.Height(24f)))
+		{
+			PlaceMountainsInActiveScene();
 		}
 
 		if (GUILayout.Button("Fix Map Materials (URP)", GUILayout.Height(24f)))
@@ -212,6 +255,26 @@ public class MapEnvironmentSetup : EditorWindow
 		EditorSceneManager.MarkSceneDirty(scene);
 	}
 
+	// Replaces the perimeter mountains on the open scene without touching the ground, trees, skybox, or fog.
+	private void PlaceMountainsInActiveScene()
+	{
+		if (mountainPrefab == null)
+		{
+			Debug.LogError($"MapEnvironmentSetup: Assign a mountain prefab (default '{MountainPrefabPath}').");
+			return;
+		}
+
+		Scene scene = SceneManager.GetActiveScene();
+		if (!TryComputeContentBounds(scene, out Bounds mapBounds))
+		{
+			Debug.LogError($"MapEnvironmentSetup: No renderers found in '{scene.name}' to measure the course.");
+			return;
+		}
+
+		PlacePerimeterMountains(scene, mapBounds);
+		EditorSceneManager.MarkSceneDirty(scene);
+	}
+
 	// Swaps non-URP (magenta) materials on the open scene's renderers for URP ones, as scene-instance overrides only.
 	private void FixMapMaterialsInActiveScene()
 	{
@@ -228,7 +291,7 @@ public class MapEnvironmentSetup : EditorWindow
 
 		foreach (GameObject rootObject in scene.GetRootGameObjects())
 		{
-			if (rootObject.name == OuterGroundName || rootObject.name == PerimeterTreesName)
+			if (IsGeneratedRoot(rootObject))
 			{
 				continue;
 			}
@@ -268,6 +331,11 @@ public class MapEnvironmentSetup : EditorWindow
 		ApplySkybox();
 		ApplyFogSettings();
 		PlantPerimeterTrees(scene, mapBounds);
+
+		if (placeMountains)
+		{
+			PlacePerimeterMountains(scene, mapBounds);
+		}
 	}
 
 	// Lays a plane just past the course on every side so its far edge sits beyond the fog, hiding the ground seam.
@@ -449,6 +517,130 @@ public class MapEnvironmentSetup : EditorWindow
 		return validPrefabs;
 	}
 
+	// Walls the course in with one rectangular ring of overlapping mountains just outside the map edge.
+	private void PlacePerimeterMountains(Scene scene, Bounds mapBounds)
+	{
+		if (mountainPrefab == null)
+		{
+			Debug.LogWarning($"MapEnvironmentSetup: Skipped mountains; no mountain prefab assigned (default '{MountainPrefabPath}').");
+			return;
+		}
+
+		GameObject existingRoot = FindRootByName(scene, PerimeterMountainsName);
+		if (existingRoot != null)
+		{
+			Undo.DestroyObjectImmediate(existingRoot);
+		}
+
+		var mountainsRoot = new GameObject(PerimeterMountainsName);
+		SceneManager.MoveGameObjectToScene(mountainsRoot, scene);
+		Undo.RegisterCreatedObjectUndo(mountainsRoot, "Place Perimeter Mountains");
+
+		Random.State previousRandomState = Random.state;
+		Random.InitState(mountainRandomSeed);
+
+		// Centers sit half a width past the offset so each mountain's inner foot stays clear of the course.
+		float ringInset = mountainRingOffset + (mountainWidth * 0.5f);
+		float ringHalfX = mapBounds.extents.x + ringInset;
+		float ringHalfZ = mapBounds.extents.z + ringInset;
+		float spacingAlongRing = mountainWidth * Mathf.Max(MinMountainSpacingRatio, 1f - mountainOverlap);
+
+		Vector2[] corners =
+		{
+			new Vector2(-ringHalfX, -ringHalfZ),
+			new Vector2(ringHalfX, -ringHalfZ),
+			new Vector2(ringHalfX, ringHalfZ),
+			new Vector2(-ringHalfX, ringHalfZ),
+		};
+
+		int placedCount = 0;
+		for (int edge = 0; edge < corners.Length && placedCount < MaxMountainCount; edge++)
+		{
+			Vector2 edgeStart = corners[edge];
+			Vector2 edgeEnd = corners[(edge + 1) % corners.Length];
+			int stepCount = Mathf.Max(1, Mathf.CeilToInt(Vector2.Distance(edgeStart, edgeEnd) / spacingAlongRing));
+
+			// Each edge includes its start point but not its end, so the shared corner is not placed twice.
+			for (int step = 0; step < stepCount && placedCount < MaxMountainCount; step++)
+			{
+				Vector2 edgePoint = Vector2.Lerp(edgeStart, edgeEnd, (float)step / stepCount);
+				Vector3 mountainCenter = new Vector3(mapBounds.center.x + edgePoint.x, mapBounds.min.y, mapBounds.center.z + edgePoint.y);
+				PlaceMountain(mountainsRoot.transform, mountainCenter);
+				placedCount++;
+			}
+		}
+
+		Random.state = previousRandomState;
+
+		if (placedCount >= MaxMountainCount)
+		{
+			Debug.LogWarning($"MapEnvironmentSetup: Reached the {MaxMountainCount} mountain safety cap. Increase width or reduce overlap.");
+		}
+
+		Debug.Log($"MapEnvironmentSetup: Placed {placedCount} mountains {mountainRingOffset:F0}m outside the course.");
+	}
+
+	// Scales one linked prefab instance to the target footprint width, then drops it so its lowest point sits below the ground.
+	private void PlaceMountain(Transform parent, Vector3 mountainCenter)
+	{
+		var mountain = (GameObject)PrefabUtility.InstantiatePrefab(mountainPrefab, parent.gameObject.scene);
+		mountain.transform.SetParent(parent, true);
+		mountain.transform.SetPositionAndRotation(mountainCenter, Quaternion.identity);
+
+		// Measured before rotating so the footprint reflects the mesh itself, not its yaw.
+		Vector3 prefabScale = mountainPrefab.transform.localScale;
+		if (!TryComputeRendererBounds(mountain, out Bounds unscaledBounds))
+		{
+			Debug.LogWarning($"MapEnvironmentSetup: Mountain prefab '{mountainPrefab.name}' has no renderers to measure.", mountainPrefab);
+			return;
+		}
+
+		float footprint = Mathf.Max(unscaledBounds.size.x, unscaledBounds.size.z);
+		float widthScale = footprint > 0f ? mountainWidth / footprint : 1f;
+		float heightScale = Random.Range(mountainHeightScaleRange.x, mountainHeightScaleRange.y);
+		mountain.transform.localScale = new Vector3(prefabScale.x * widthScale, prefabScale.y * widthScale * heightScale, prefabScale.z * widthScale);
+		mountain.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+		// The mesh pivot is not guaranteed to be at its base, so ground it from the measured bottom instead.
+		if (TryComputeRendererBounds(mountain, out Bounds placedBounds))
+		{
+			float groundingOffset = mountainCenter.y - mountainSinkDepth - placedBounds.min.y;
+			mountain.transform.position += Vector3.up * groundingOffset;
+		}
+
+		// The course is fenced in, so the vehicle never reaches the mountains; colliders would only cost physics time.
+		if (removeMountainColliders)
+		{
+			foreach (Collider mountainCollider in mountain.GetComponentsInChildren<Collider>(true))
+			{
+				Object.DestroyImmediate(mountainCollider);
+			}
+		}
+
+		GameObjectUtility.SetStaticEditorFlags(mountain, StaticEditorFlags.BatchingStatic);
+	}
+
+	private static bool TryComputeRendererBounds(GameObject target, out Bounds bounds)
+	{
+		bounds = default;
+		bool hasBounds = false;
+
+		foreach (Renderer renderer in target.GetComponentsInChildren<Renderer>(true))
+		{
+			if (!hasBounds)
+			{
+				bounds = renderer.bounds;
+				hasBounds = true;
+			}
+			else
+			{
+				bounds.Encapsulate(renderer.bounds);
+			}
+		}
+
+		return hasBounds;
+	}
+
 	// True when a slot is empty or uses a Built-in/legacy shader that renders magenta under URP.
 	private static bool NeedsUrpReplacement(Material material)
 	{
@@ -530,7 +722,7 @@ public class MapEnvironmentSetup : EditorWindow
 
 		foreach (GameObject rootObject in scene.GetRootGameObjects())
 		{
-			if (rootObject.name == OuterGroundName || rootObject.name == PerimeterTreesName)
+			if (IsGeneratedRoot(rootObject))
 			{
 				continue;
 			}
@@ -550,6 +742,14 @@ public class MapEnvironmentSetup : EditorWindow
 		}
 
 		return hasBounds;
+	}
+
+	// Roots this tool spawns are skipped when measuring or fixing the course, so re-runs don't measure their own output.
+	private static bool IsGeneratedRoot(GameObject rootObject)
+	{
+		return rootObject.name == OuterGroundName
+			|| rootObject.name == PerimeterTreesName
+			|| rootObject.name == PerimeterMountainsName;
 	}
 
 	private static GameObject FindRootByName(Scene scene, string rootName)
