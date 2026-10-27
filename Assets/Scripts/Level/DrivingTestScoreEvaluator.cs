@@ -171,8 +171,9 @@ public sealed class DrivingTestScoreEvaluator
 
 	// routeDistanceMeters is the vehicle position along the current section's route direction (larger = further ahead).
 	// vehicleState is null when the vehicle controls cannot be read; their rules are then skipped.
+	// approachSignalState is the light of the stop line the vehicle is approaching, or null when none governs it.
 	public void Tick(float deltaSeconds, float speedKmh, float routeDistanceMeters = 0f,
-		DrivingVehicleState? vehicleState = null)
+		DrivingVehicleState? vehicleState = null, TrafficLightState? approachSignalState = null)
 	{
 		if (!isCourseRunning || !hasSection || deltaSeconds <= 0f)
 		{
@@ -188,7 +189,7 @@ public sealed class DrivingTestScoreEvaluator
 		JudgeOverSpeed(deltaSeconds, speedKmh);
 		JudgeEmergencyStop(speedKmh);
 		JudgeHillStop(deltaSeconds, speedKmh, routeDistanceMeters);
-		JudgeSignal(deltaSeconds, speedKmh);
+		JudgeSignal(deltaSeconds, speedKmh, approachSignalState);
 		JudgeCourseTime();
 
 		if (vehicleState.HasValue)
@@ -221,6 +222,26 @@ public sealed class DrivingTestScoreEvaluator
 			: DrivingDeductionReason.LaneKeepingLineTouch;
 
 		Deduct(reason, penalty, matchedCommand.Length > 0 ? matchedCommand : string.Join(" | ", currentCommands));
+	}
+
+	// Called when the vehicle front reaches a stop line; doing so on a stop light is a signal violation.
+	// A right turn may proceed on any light, so it is never a signal violation.
+	public void RegisterStopLineCrossing(TrafficLightState signalState)
+	{
+		if (!isCourseRunning || !hasSection || isRightTurnSection)
+		{
+			return;
+		}
+
+		bool isStopSignal = signalState == TrafficLightState.Red
+			|| (signalState == TrafficLightState.Yellow && settings.IsYellowSignalViolation);
+		if (!isStopSignal)
+		{
+			return;
+		}
+
+		Disqualify(DrivingDeductionReason.SignalViolation,
+			isSignalSection ? DrivingScoringSettings.SignalCommand : string.Join(" | ", currentCommands));
 	}
 
 	// Section-end rules run before the section state is cleared, so deductions belong to the ending section.
@@ -375,15 +396,20 @@ public sealed class DrivingTestScoreEvaluator
 		}
 	}
 
-	// Signal-state rules (red light violation, stopping past the line) need a traffic light system and are not judged here.
-	private void JudgeSignal(float deltaSeconds, float speedKmh)
+	// Waiting before the stop line for a red or yellow light is required, so it does not count as a long stop.
+	// A right turn does not wait for the light, so its stops always count.
+	// The signal violation itself is judged by RegisterStopLineCrossing.
+	private void JudgeSignal(float deltaSeconds, float speedKmh, TrafficLightState? approachSignalState)
 	{
 		if (!isSignalSection)
 		{
 			return;
 		}
 
-		if (speedKmh <= settings.StoppedSpeedKmh)
+		bool isWaitingForGreen = !isRightTurnSection
+			&& approachSignalState.HasValue
+			&& approachSignalState.Value != TrafficLightState.Green;
+		if (speedKmh <= settings.StoppedSpeedKmh && !isWaitingForGreen)
 		{
 			signalStopSeconds += deltaSeconds;
 			if (signalStopSeconds >= settings.SignalStopLimitSeconds && !isSignalStopPenalized)

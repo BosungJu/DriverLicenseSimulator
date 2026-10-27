@@ -306,6 +306,88 @@ public class DrivingScoringTests
 		Assert.That(ScoreSheet.Deductions, Is.Empty);
 	}
 
+	[TestCase(TrafficLightState.Red)]
+	[TestCase(TrafficLightState.Yellow)]
+	public void Tick_SignalWaitingBeforeLineOnStopLight_NoLongStopDeduction(TrafficLightState approachSignalState)
+	{
+		Begin(9, "left", "signal");
+
+		evaluator.Tick(30f, StoppedKmh, 0f, null, approachSignalState);
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	// A right turn ignores the light, so stopping at red is not waiting for green.
+	[Test]
+	public void Tick_RightTurnSignalStoppedTwentySecondsOnRed_Deducts5()
+	{
+		Begin(9, "right", "signal");
+
+		evaluator.Tick(20f, StoppedKmh, 0f, null, TrafficLightState.Red);
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(5));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.SignalLongStop));
+	}
+
+	// The stop time restarts when the light turns green, so the red wait does not add to it.
+	[Test]
+	public void Tick_SignalStoppedTwentySecondsAfterGreen_Deducts5()
+	{
+		Begin(9, "left", "signal");
+		evaluator.Tick(15f, StoppedKmh, 0f, null, TrafficLightState.Red);
+
+		evaluator.Tick(19f, StoppedKmh, 0f, null, TrafficLightState.Green);
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+
+		evaluator.Tick(1f, StoppedKmh, 0f, null, TrafficLightState.Green);
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(5));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.SignalLongStop));
+	}
+
+	[TestCase(TrafficLightState.Red)]
+	[TestCase(TrafficLightState.Yellow)]
+	public void RegisterStopLineCrossing_OnStopLight_Disqualifies(TrafficLightState signalState)
+	{
+		Begin(9, "left", "signal");
+
+		evaluator.RegisterStopLineCrossing(signalState);
+
+		Assert.That(ScoreSheet.IsDisqualified, Is.True);
+		Assert.That(ScoreSheet.Disqualification.Reason, Is.EqualTo(DrivingDeductionReason.SignalViolation));
+		Assert.That(ScoreSheet.Disqualification.Command, Is.EqualTo("signal"));
+		Assert.That(ScoreSheet.Disqualification.PointNumber, Is.EqualTo(9));
+	}
+
+	[Test]
+	public void RegisterStopLineCrossing_OnGreen_NoDeduction()
+	{
+		Begin(9, "left", "signal");
+
+		evaluator.RegisterStopLineCrossing(TrafficLightState.Green);
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[TestCase(TrafficLightState.Red)]
+	[TestCase(TrafficLightState.Yellow)]
+	public void RegisterStopLineCrossing_RightTurnOnStopLight_NoDeduction(TrafficLightState signalState)
+	{
+		Begin(9, "right", "signal");
+
+		evaluator.RegisterStopLineCrossing(signalState);
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[Test]
+	public void RegisterStopLineCrossing_BeforeCourseStarts_IsIgnored()
+	{
+		evaluator.RegisterStopLineCrossing(TrafficLightState.Red);
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
 	#endregion
 
 	#region Course Rules

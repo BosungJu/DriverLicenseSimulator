@@ -49,8 +49,11 @@ public class DrivingScoringSettings
 	[SerializeField] private float hillPassTimeLimitSeconds = 30f;
 
 	[Header("신호교차로")]
+	[Tooltip("Stopping this long is deducted. Waiting before the stop line on a red or yellow light is not counted, except in a right-turn section, which ignores the light.")]
 	[SerializeField] private float signalStopLimitSeconds = 20f;
 	[SerializeField] private int signalStopPenalty = 5;
+	[Tooltip("When on, reaching the stop line on a yellow light is a signal violation (disqualified) like a red light.")]
+	[SerializeField] private bool isYellowSignalViolation = true;
 
 	[Header("직각주차")]
 	[SerializeField] private float parkingTimeLimitSeconds = 120f;
@@ -108,6 +111,7 @@ public class DrivingScoringSettings
 	public float HillPassTimeLimitSeconds => hillPassTimeLimitSeconds;
 	public float SignalStopLimitSeconds => signalStopLimitSeconds;
 	public int SignalStopPenalty => signalStopPenalty;
+	public bool IsYellowSignalViolation => isYellowSignalViolation;
 	public float ParkingTimeLimitSeconds => parkingTimeLimitSeconds;
 	public int ParkingTimeOverPenalty => parkingTimeOverPenalty;
 	public int ParkingBrakePenalty => parkingBrakePenalty;
