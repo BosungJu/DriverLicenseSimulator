@@ -162,14 +162,69 @@ public class DrivingScoringTests
 		evaluator.Tick(stopSeconds, StoppedKmh, HillStopDistance);
 	}
 
-	// The official table has no minimum stop time on the hill, only stopping, rollback and the pass time limit.
-	[TestCase(0.1f)]
+	// Test machines give the departure cue after a 3 s stop; the stop time counts from the first stopped tick.
 	[TestCase(3f)]
-	public void Tick_HillStoppedThenDeparts_NoDeduction(float stopSeconds)
+	[TestCase(10f)]
+	public void Tick_HillStoppedAtLeast3SecondsThenDeparts_NoDeduction(float stopSeconds)
 	{
 		StopOnHill(stopSeconds);
 
 		evaluator.Tick(0.1f, 5f, HillStopDistance + 0.1f);
+		evaluator.EndSection();
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[TestCase(0f)]
+	[TestCase(2.9f)]
+	public void EndSection_HillDepartsBefore3Seconds_DisqualifiesAsNotStopped(float stopSeconds)
+	{
+		StopOnHill(stopSeconds);
+
+		evaluator.Tick(0.1f, 5f, HillStopDistance + 0.1f);
+		Assert.That(ScoreSheet.IsDisqualified, Is.False);
+
+		evaluator.EndSection();
+
+		Assert.That(ScoreSheet.Disqualification.Reason, Is.EqualTo(DrivingDeductionReason.HillNotStopped));
+	}
+
+	[Test]
+	public void EndSection_HillShortStopsDoNotAddUp_DisqualifiesAsNotStopped()
+	{
+		StopOnHill(2f);
+		evaluator.Tick(0.1f, 5f, HillStopDistance + 0.1f);
+		evaluator.Tick(0.1f, StoppedKmh, HillStopDistance + 0.1f);
+		evaluator.Tick(2f, StoppedKmh, HillStopDistance + 0.1f);
+		evaluator.Tick(0.1f, 5f, HillStopDistance + 0.2f);
+
+		evaluator.EndSection();
+
+		Assert.That(ScoreSheet.Disqualification.Reason, Is.EqualTo(DrivingDeductionReason.HillNotStopped));
+	}
+
+	[Test]
+	public void EndSection_HillRestopFirstTickOnly_DisqualifiesAsNotStopped()
+	{
+		StopOnHill(1f);
+		evaluator.Tick(0.1f, 5f, HillStopDistance + 0.1f);
+		evaluator.Tick(3f, StoppedKmh, HillStopDistance + 0.1f);
+		evaluator.Tick(0.1f, 5f, HillStopDistance + 0.2f);
+
+		evaluator.EndSection();
+
+		Assert.That(ScoreSheet.Disqualification.Reason, Is.EqualTo(DrivingDeductionReason.HillNotStopped));
+	}
+
+	[Test]
+	public void EndSection_HillShortStopThenFullStop_NoDeduction()
+	{
+		StopOnHill(1f);
+		evaluator.Tick(0.1f, 5f, HillStopDistance + 0.1f);
+		evaluator.Tick(0.1f, StoppedKmh, HillStopDistance + 0.1f);
+		evaluator.Tick(3f, StoppedKmh, HillStopDistance + 0.1f);
+		evaluator.Tick(0.1f, 5f, HillStopDistance + 0.2f);
+
 		evaluator.EndSection();
 
 		Assert.That(ScoreSheet.Deductions, Is.Empty);
@@ -501,6 +556,21 @@ public class DrivingScoringTests
 		Tick(1f, DrivingKmh, Controls());
 
 		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[Test]
+	public void Tick_EmergencyHazardOnBeforeStop_Deducts10Once()
+	{
+		Begin(5, "on_emergency");
+
+		Tick(0.5f, DrivingKmh, Controls(hazard: true));
+		Tick(0.5f, DrivingKmh, Controls(hazard: true));
+		Tick(1f, StoppedKmh, Controls(hazard: true));
+		Tick(1f, StoppedKmh, Controls());
+		Tick(1f, DrivingKmh, Controls());
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(10));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.EmergencyHazardEarly));
 	}
 
 	[Test]

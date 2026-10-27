@@ -24,7 +24,8 @@ public enum DrivingDeductionReason
 	StartSignalMissing,
 	FinishSignalMissing,
 	EngineStalled,
-	SeatBeltNotWorn
+	SeatBeltNotWorn,
+	EmergencyHazardEarly
 }
 
 public sealed class DrivingDeduction

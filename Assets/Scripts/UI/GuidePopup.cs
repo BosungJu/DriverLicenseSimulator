@@ -51,7 +51,7 @@ public class GuidePopup : MonoBehaviour
 		new CommandGuide("start", "기능시험을 시작합니다. 안전띠를 매고 시동을 건 뒤\n방향지시등을 켜고 30초 안에 출발하세요."),
 		new CommandGuide("hill", "경사로 구간입니다.\n정지 구간에 정차한 뒤 뒤로 밀리지 않게 출발하세요."),
 		new CommandGuide("hill", 0, "경사로 구간입니다.\n정지 구간까지 천천히 올라가세요."),
-		new CommandGuide("hill", 1, "경사로 정지 구간입니다. 완전히 정차한 뒤\n30초 안에 뒤로 밀리지 않게 출발하세요."),
+		new CommandGuide("hill", 1, "경사로 정지 구간입니다. 3초 이상 정차한 뒤\n30초 안에 뒤로 밀리지 않게 출발하세요."),
 		new CommandGuide("hill", 2, "경사로를 통과했습니다.\n속도를 줄이며 천천히 내려가세요."),
 		new CommandGuide("left", "좌회전하세요.\n좌측 방향지시등을 켜고 진행하세요."),
 		new CommandGuide("right", "우회전하세요.\n우측 방향지시등을 켜고 진행하세요."),
@@ -62,7 +62,7 @@ public class GuidePopup : MonoBehaviour
 		new CommandGuide("t_test", 2, "주차 브레이크를 채웠다가 풀고\n전진하여 차고를 빠져나오세요."),
 		new CommandGuide("t_test", 3, "직각주차 구간을 통과했습니다.\n다음 코스로 진행하세요."),
 		new CommandGuide("fast", "가속 구간입니다.\n시속 20km 이상으로 가속한 뒤 감속하세요."),
-		new CommandGuide("on_emergency", "돌발 상황입니다! 2초 안에 정지하고\n3초 안에 비상등을 켠 뒤, 끄고 출발하세요."),
+		new CommandGuide("on_emergency", "돌발 상황입니다! 2초 안에 정지하고, 정지한 뒤\n3초 안에 비상등을 켰다가 끄고 출발하세요."),
 		new CommandGuide("end", "종료 지점입니다.\n시험 결과를 확인하세요.")
 	};
 	[Tooltip("다음 지점이 종료 지점(end)일 때 그 구간 안내 아래에 덧붙인다. 종료 방향지시등은 이 구간에서 채점된다.")]

@@ -60,9 +60,15 @@ public sealed class DrivingTestScoreEvaluator
 	private float emergencyStoppedSeconds;
 	private bool isEmergencyHazardJudged;
 	private bool isEmergencyDepartureJudged;
+	private bool isEmergencyHazardEarlyJudged;
 
 	// Hill stop zone state; route distance is measured along the section's route direction.
+	// hasHillStopped marks the first stop (rollback and pass time count from it);
+	// only a continuous stop of the minimum duration fulfils the stop requirement.
 	private bool hasHillStopped;
+	private bool isHillStopHolding;
+	private float hillStopHoldSeconds;
+	private bool hasHillHeldMinimumStop;
 	private float hillStopRouteDistance;
 	private float hillElapsedSinceStopSeconds;
 	private bool isHillRollbackPenalized;
@@ -231,7 +237,7 @@ public sealed class DrivingTestScoreEvaluator
 				DrivingScoringSettings.AccelerationCommand);
 		}
 
-		if (isHillStopSection && !hasHillStopped)
+		if (isHillStopSection && !hasHillHeldMinimumStop)
 		{
 			Disqualify(DrivingDeductionReason.HillNotStopped, DrivingScoringSettings.HillCommand);
 		}
@@ -311,7 +317,7 @@ public sealed class DrivingTestScoreEvaluator
 		}
 	}
 
-	// The stop zone requires a stop, no rollback, and passing it within the time limit after stopping.
+	// The stop zone requires a stop of the minimum duration, no rollback, and passing it within the time limit after stopping.
 	private void JudgeHillStop(float deltaSeconds, float speedKmh, float routeDistanceMeters)
 	{
 		if (!isHillStopSection)
@@ -325,6 +331,7 @@ public sealed class DrivingTestScoreEvaluator
 			if (isStopped)
 			{
 				hasHillStopped = true;
+				isHillStopHolding = true;
 				hillStopRouteDistance = routeDistanceMeters;
 			}
 
@@ -332,6 +339,24 @@ public sealed class DrivingTestScoreEvaluator
 		}
 
 		hillElapsedSinceStopSeconds += deltaSeconds;
+
+		// Short stops do not add up; moving again restarts the required stop.
+		// Like the first stop, a new stop counts from its first stopped tick.
+		if (isStopped)
+		{
+			if (isHillStopHolding)
+			{
+				hillStopHoldSeconds += deltaSeconds;
+				hasHillHeldMinimumStop |= hillStopHoldSeconds >= settings.HillMinimumStopSeconds;
+			}
+
+			isHillStopHolding = true;
+		}
+		else
+		{
+			isHillStopHolding = false;
+			hillStopHoldSeconds = 0f;
+		}
 
 		float rollbackMeters = hillStopRouteDistance - routeDistanceMeters;
 		if (rollbackMeters >= settings.HillRollbackDisqualifyMeters)
@@ -457,7 +482,8 @@ public sealed class DrivingTestScoreEvaluator
 		}
 	}
 
-	// After the emergency stop the hazard lights must come on in time, and be off again when the vehicle departs.
+	// The hazard lights belong after the emergency stop: not while still moving, on in time once stopped,
+	// and off again when the vehicle departs.
 	private void JudgeEmergencyHazard(float deltaSeconds, float speedKmh, DrivingVehicleState vehicleState)
 	{
 		if (!isEmergencySection)
@@ -471,6 +497,7 @@ public sealed class DrivingTestScoreEvaluator
 		{
 			if (!isStopped)
 			{
+				JudgeEmergencyHazardEarly(vehicleState);
 				return;
 			}
 
@@ -506,6 +533,19 @@ public sealed class DrivingTestScoreEvaluator
 					DrivingScoringSettings.EmergencyCommand);
 			}
 		}
+	}
+
+	// Test machines deduct hazard lights switched on before the stop is complete.
+	private void JudgeEmergencyHazardEarly(DrivingVehicleState vehicleState)
+	{
+		if (isEmergencyHazardEarlyJudged || !vehicleState.IsHazardOn)
+		{
+			return;
+		}
+
+		isEmergencyHazardEarlyJudged = true;
+		Deduct(DrivingDeductionReason.EmergencyHazardEarly, settings.EmergencyPenalty,
+			DrivingScoringSettings.EmergencyCommand);
 	}
 
 	// A left/right section needs its matching turn signal at some point while driving through it.
@@ -588,7 +628,11 @@ public sealed class DrivingTestScoreEvaluator
 		emergencyStoppedSeconds = 0f;
 		isEmergencyHazardJudged = false;
 		isEmergencyDepartureJudged = false;
+		isEmergencyHazardEarlyJudged = false;
 		hasHillStopped = false;
+		isHillStopHolding = false;
+		hillStopHoldSeconds = 0f;
+		hasHillHeldMinimumStop = false;
 		hillStopRouteDistance = 0f;
 		hillElapsedSinceStopSeconds = 0f;
 		isHillRollbackPenalized = false;

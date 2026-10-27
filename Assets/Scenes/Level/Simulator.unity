@@ -2729,6 +2729,18 @@ PrefabInstance:
       value: Car (1)
       objectReference: {fileID: 0}
     - target: {fileID: 5899985786913793552, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 5899985786913793552, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 5899985786913793552, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 5899985786913793552, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
       propertyPath: m_LocalPosition.x
       value: 31.087221
       objectReference: {fileID: 0}
@@ -3487,7 +3499,7 @@ Transform:
   m_GameObject: {fileID: 965688832}
   serializedVersion: 2
   m_LocalRotation: {x: 0.13052471, y: 0, z: 0, w: 0.99144506}
-  m_LocalPosition: {x: 30.617222, y: 2.3, z: 30.923119}
+  m_LocalPosition: {x: 30.711222, y: 2.04, z: 30.983118}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

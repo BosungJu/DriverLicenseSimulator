@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Defaults follow the class 1/2 ordinary course test scoring table (장내기능시험 채점기준).
+// Defaults follow the class 1/2 ordinary course test scoring table (도로교통법 시행규칙 별표 24, revised 2026-02-24).
+// The hill minimum stop and the hazard-before-stop rule come from test site practice, not the table text.
 [Serializable]
 public class DrivingScoringSettings
 {
@@ -38,6 +39,8 @@ public class DrivingScoringSettings
 	[Header("경사로 정지·출발")]
 	[Tooltip("hill_n step whose section is the stop zone.")]
 	[SerializeField] private int hillStopStep = 1;
+	[Tooltip("A shorter continuous stop counts as not stopping (disqualified). Test machines give the departure cue after 3 s.")]
+	[SerializeField] private float hillMinimumStopSeconds = 3f;
 	[SerializeField] private float hillRollbackPenaltyMeters = 0.5f;
 	[SerializeField] private int hillRollbackPenalty = 10;
 	[Tooltip("Disqualified when rolling back this far after stopping.")]
@@ -70,7 +73,7 @@ public class DrivingScoringSettings
 	[SerializeField] private float emergencyHazardTimeLimitSeconds = 3f;
 	[Tooltip("Speed at or below this counts as stopped.")]
 	[SerializeField] private float stoppedSpeedKmh = 1f;
-	[Tooltip("Applied to each failure: late stop, late hazard lights, hazard lights still on when departing.")]
+	[Tooltip("Applied to each failure: late stop, hazard lights on before stopping, late hazard lights, hazard lights still on when departing.")]
 	[SerializeField] private int emergencyPenalty = 10;
 
 	[Header("좌회전 또는 우회전")]
@@ -98,6 +101,7 @@ public class DrivingScoringSettings
 	public float LineTouchCooldownSeconds => lineTouchCooldownSeconds;
 	public float StartTimeLimitSeconds => startTimeLimitSeconds;
 	public int HillStopStep => hillStopStep;
+	public float HillMinimumStopSeconds => hillMinimumStopSeconds;
 	public float HillRollbackPenaltyMeters => hillRollbackPenaltyMeters;
 	public int HillRollbackPenalty => hillRollbackPenalty;
 	public float HillRollbackDisqualifyMeters => hillRollbackDisqualifyMeters;
