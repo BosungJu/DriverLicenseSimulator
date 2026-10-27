@@ -11,7 +11,7 @@ public class GyroScope : MonoBehaviour
     [SerializeField] InputActionReference steeringAction; // Car/Handle_GyroScope (Vector2의 x축 사용)
 
     [Header("Tuning")]
-    [SerializeField, Range(0f, 0.5f)] float deadZone = 0.05f; // 영점 근처 흔들림을 무시할 범위
+    [SerializeField, Range(0f, 0.5f)] float deadZone = 0.15f; // 영점 근처 흔들림(자이로 손떨림)을 무시할 범위
     [SerializeField, Min(0f)] float sensitivity = 1f;
     [SerializeField] bool invert;
 

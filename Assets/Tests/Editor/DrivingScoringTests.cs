@@ -162,26 +162,17 @@ public class DrivingScoringTests
 		evaluator.Tick(stopSeconds, StoppedKmh, HillStopDistance);
 	}
 
-	[Test]
-	public void Tick_HillStoppedThreeSecondsThenDeparts_NoDeduction()
+	// The official table has no minimum stop time on the hill, only stopping, rollback and the pass time limit.
+	[TestCase(0.1f)]
+	[TestCase(3f)]
+	public void Tick_HillStoppedThenDeparts_NoDeduction(float stopSeconds)
 	{
-		StopOnHill(3f);
+		StopOnHill(stopSeconds);
 
 		evaluator.Tick(0.1f, 5f, HillStopDistance + 0.1f);
 		evaluator.EndSection();
 
 		Assert.That(ScoreSheet.Deductions, Is.Empty);
-	}
-
-	[Test]
-	public void Tick_HillDepartsBeforeThreeSeconds_Deducts10()
-	{
-		StopOnHill(2f);
-
-		evaluator.Tick(0.1f, 5f, HillStopDistance + 0.1f);
-
-		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(10));
-		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.HillShortStop));
 	}
 
 	[Test]
@@ -248,17 +239,16 @@ public class DrivingScoringTests
 		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.SignalLongStop));
 	}
 
+	// The official table has no pass time limit at the signal intersection; only stopping 20 s or more is deducted.
 	[Test]
-	public void Tick_SignalNotPassedWithin30Seconds_Disqualifies()
+	public void Tick_SignalDrivingLongerThan30Seconds_NoDisqualification()
 	{
 		Begin(9, "right", "signal");
 
-		evaluator.Tick(30f, 10f);
+		evaluator.Tick(40f, 10f);
+
 		Assert.That(ScoreSheet.IsDisqualified, Is.False);
-
-		evaluator.Tick(0.1f, 10f);
-
-		Assert.That(ScoreSheet.Disqualification.Reason, Is.EqualTo(DrivingDeductionReason.SignalPassTimeOver));
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
 	}
 
 	#endregion
@@ -323,6 +313,257 @@ public class DrivingScoringTests
 
 		Assert.That(ScoreSheet.Score, Is.EqualTo(100));
 		Assert.That(ScoreSheet.IsDisqualified, Is.False);
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	#endregion
+
+	#region Vehicle Controls
+
+	private const float DrivingKmh = 10f;
+
+	private static DrivingVehicleState Controls(bool seatBelt = true, bool engine = true, bool hazard = false,
+		bool leftSignal = false, bool rightSignal = false, bool parkingBrake = false)
+	{
+		return new DrivingVehicleState(seatBelt, engine, hazard, leftSignal, rightSignal, parkingBrake);
+	}
+
+	private void Tick(float deltaSeconds, float speedKmh, DrivingVehicleState vehicleState)
+	{
+		evaluator.Tick(deltaSeconds, speedKmh, 0f, vehicleState);
+	}
+
+	[Test]
+	public void Tick_DrivingWithoutSeatBelt_Disqualifies()
+	{
+		Begin(3, "left");
+
+		Tick(1f, StoppedKmh, Controls(seatBelt: false));
+		Assert.That(ScoreSheet.IsDisqualified, Is.False);
+
+		Tick(1f, DrivingKmh, Controls(seatBelt: false));
+
+		Assert.That(ScoreSheet.Disqualification.Reason, Is.EqualTo(DrivingDeductionReason.SeatBeltNotWorn));
+	}
+
+	[Test]
+	public void Tick_MovingWithEngineOffAndNoSeatBelt_NoDisqualification()
+	{
+		Begin(0, "start");
+
+		Tick(0.5f, DrivingKmh, Controls(seatBelt: false, engine: false));
+
+		Assert.That(ScoreSheet.IsDisqualified, Is.False);
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[Test]
+	public void Tick_EngineTurnsOffDuringCourse_Deducts5EachTime()
+	{
+		Begin(3, "left");
+
+		Tick(1f, DrivingKmh, Controls(engine: true));
+		Tick(1f, StoppedKmh, Controls(engine: false));
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(5));
+
+		Tick(1f, StoppedKmh, Controls(engine: true));
+		Tick(1f, StoppedKmh, Controls(engine: false));
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(10));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.EngineStalled));
+	}
+
+	[TestCase(true, 0)]
+	[TestCase(false, 5)]
+	public void Tick_StartDeparture_DeductsWithoutTurnSignalAtDeparture(bool isSignalOnAtDeparture, int expectedDeduction)
+	{
+		Begin(0, "start");
+
+		Tick(1f, StoppedKmh, Controls());
+		Tick(1f, DrivingKmh, Controls(leftSignal: isSignalOnAtDeparture));
+		Tick(1f, DrivingKmh, Controls());
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+	}
+
+	[Test]
+	public void Tick_StartSignalCancelledBeforeDeparture_Deducts5()
+	{
+		Begin(0, "start");
+
+		Tick(1f, StoppedKmh, Controls(leftSignal: true));
+		Tick(1f, StoppedKmh, Controls());
+		Tick(1f, DrivingKmh, Controls());
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(5));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.StartSignalMissing));
+	}
+
+	[TestCase("left", true, false, 0)]
+	[TestCase("left", false, true, 5)]
+	[TestCase("right", false, true, 0)]
+	[TestCase("right", false, false, 5)]
+	public void EndSection_TurnSection_DeductsWithoutMatchingSignal(string command, bool leftSignal, bool rightSignal,
+		int expectedDeduction)
+	{
+		Begin(4, command);
+		Tick(1f, DrivingKmh, Controls(leftSignal: leftSignal, rightSignal: rightSignal));
+		Tick(1f, DrivingKmh, Controls());
+
+		evaluator.EndSection();
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+	}
+
+	[Test]
+	public void EndSection_TurnSectionWithoutVehicleState_NoDeduction()
+	{
+		Begin(4, "left");
+		evaluator.Tick(1f, DrivingKmh);
+
+		evaluator.EndSection();
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[TestCase(true, 0)]
+	[TestCase(false, 10)]
+	public void BeginSection_LeavingParkingCourse_DeductsWithoutParkingBrake(bool isBrakeApplied, int expectedDeduction)
+	{
+		Begin(11, "T_TEST_0");
+		Tick(1f, StoppedKmh, Controls());
+		Begin(12, "T_TEST_1");
+		Tick(1f, StoppedKmh, Controls(parkingBrake: isBrakeApplied));
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+
+		Begin(13, "fast");
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+		if (expectedDeduction > 0)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.ParkingBrakeNotApplied));
+			Assert.That(ScoreSheet.Deductions[0].PointNumber, Is.EqualTo(12));
+		}
+	}
+
+	[Test]
+	public void BeginSection_ParkingBrakeOnlyWhileMoving_Deducts10()
+	{
+		Begin(11, "T_TEST_0");
+		Tick(1f, DrivingKmh, Controls(parkingBrake: true));
+		Tick(1f, StoppedKmh, Controls());
+
+		Begin(12, "fast");
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(10));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.ParkingBrakeNotApplied));
+	}
+
+	private void StopForEmergency()
+	{
+		Begin(5, "on_emergency");
+		Tick(1f, StoppedKmh, Controls());
+	}
+
+	[Test]
+	public void Tick_EmergencyHazardOnThenOffBeforeDeparture_NoDeduction()
+	{
+		StopForEmergency();
+
+		Tick(2f, StoppedKmh, Controls(hazard: true));
+		Tick(1f, StoppedKmh, Controls());
+		Tick(1f, DrivingKmh, Controls());
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[Test]
+	public void Tick_EmergencyHazardNotOnWithin3Seconds_Deducts10Once()
+	{
+		StopForEmergency();
+
+		Tick(3f, StoppedKmh, Controls());
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+
+		Tick(0.1f, StoppedKmh, Controls());
+		Tick(1f, DrivingKmh, Controls());
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(10));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.EmergencyHazardLate));
+	}
+
+	[Test]
+	public void Tick_EmergencyHazardOnAtStopThenOffBeforeDeparture_NoDeduction()
+	{
+		Begin(5, "on_emergency");
+
+		Tick(1f, StoppedKmh, Controls(hazard: true));
+		Tick(1f, DrivingKmh, Controls());
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[Test]
+	public void Tick_EmergencyHazardOnAfterDeadline_DeductsHazardLate()
+	{
+		StopForEmergency();
+
+		Tick(2.9f, StoppedKmh, Controls());
+		Tick(0.2f, StoppedKmh, Controls(hazard: true));
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(10));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.EmergencyHazardLate));
+	}
+
+	[Test]
+	public void Tick_EmergencyDepartsBeforeHazardOn_DeductsHazardLate()
+	{
+		StopForEmergency();
+
+		Tick(1f, DrivingKmh, Controls());
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(10));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.EmergencyHazardLate));
+	}
+
+	[Test]
+	public void Tick_EmergencyDepartsWithHazardOn_Deducts10()
+	{
+		StopForEmergency();
+
+		Tick(1f, StoppedKmh, Controls(hazard: true));
+		Tick(1f, DrivingKmh, Controls(hazard: true));
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(10));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.EmergencyHazardNotOff));
+	}
+
+	[TestCase(true, 0)]
+	[TestCase(false, 5)]
+	public void BeginSection_Finish_DeductsWithoutApproachTurnSignal(bool hasApproachSignal, int expectedDeduction)
+	{
+		Begin(21, "hill_2");
+		Tick(10f, DrivingKmh, Controls(rightSignal: hasApproachSignal));
+		Tick(10f, DrivingKmh, Controls());
+
+		Begin(22, "end");
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+		if (expectedDeduction > 0)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.FinishSignalMissing));
+			Assert.That(ScoreSheet.Deductions[0].PointNumber, Is.EqualTo(22));
+		}
+	}
+
+	[Test]
+	public void BeginSection_FinishWithoutVehicleState_NoDeduction()
+	{
+		Begin(21, "hill_2");
+		evaluator.Tick(10f, DrivingKmh);
+
+		Begin(22, "end");
+
 		Assert.That(ScoreSheet.Deductions, Is.Empty);
 	}
 

@@ -11,7 +11,7 @@ public class DrivingDeductedEvent : UnityEvent<DrivingDeduction>
 {
 }
 
-// Feeds the running course (section changes, vehicle speed, line contacts) into the scoring rules.
+// Feeds the running course (section changes, vehicle speed, vehicle controls, line contacts) into the scoring rules.
 [DisallowMultipleComponent]
 [RequireComponent(typeof(DrivingTestLevel))]
 public class DrivingTestScorer : MonoBehaviour
@@ -34,6 +34,8 @@ public class DrivingTestScorer : MonoBehaviour
 	private MapRouteSection scoredSection;
 	private GameObject scoredVehicle;
 	private Rigidbody scoredVehicleRigidbody;
+	private Rigidbody controlSourceRigidbody;
+	private CarController scoredVehicleController;
 
 	public DrivingScoreSheet ScoreSheet => evaluator.ScoreSheet;
 	public int Score => evaluator.ScoreSheet.Score;
@@ -99,7 +101,7 @@ public class DrivingTestScorer : MonoBehaviour
 		float speedKmh = vehicleBody.linearVelocity.magnitude * MetersPerSecondToKmh;
 		// Route points face the route direction, so this world-space projection grows as the vehicle advances.
 		float routeDistanceMeters = Vector3.Dot(vehicleBody.position, scoredSection.transform.forward);
-		evaluator.Tick(Time.deltaTime, speedKmh, routeDistanceMeters);
+		evaluator.Tick(Time.deltaTime, speedKmh, routeDistanceMeters, ReadVehicleState(vehicleBody));
 	}
 
 	public void ResetScore()
@@ -169,6 +171,38 @@ public class DrivingTestScorer : MonoBehaviour
 		}
 
 		return scoredVehicleRigidbody;
+	}
+
+	// Null when the controls cannot be read, so the evaluator skips the control rules instead of failing them.
+	private DrivingVehicleState? ReadVehicleState(Rigidbody vehicleBody)
+	{
+		CarController vehicleController = GetVehicleController(vehicleBody);
+		if (vehicleController == null || vehicleController.systems == null)
+		{
+			return null;
+		}
+
+		VehicleSystems vehicleSystems = vehicleController.systems;
+		return new DrivingVehicleState(vehicleSystems.SeatBeltOn, vehicleSystems.EngineOn, vehicleSystems.HazardOn,
+			vehicleSystems.LeftSignalOn, vehicleSystems.RightSignalOn, vehicleController.ParkingBrakeOn);
+	}
+
+	// Looked up once per vehicle Rigidbody rather than every frame.
+	private CarController GetVehicleController(Rigidbody vehicleBody)
+	{
+		if (controlSourceRigidbody == vehicleBody)
+		{
+			return scoredVehicleController;
+		}
+
+		controlSourceRigidbody = vehicleBody;
+		scoredVehicleController = vehicleBody.GetComponentInParent<CarController>();
+		if (scoredVehicleController == null || scoredVehicleController.systems == null)
+		{
+			Debug.LogWarning("DrivingTestScorer: CarController or its VehicleSystems is missing; seat belt, engine, signal and parking brake rules are skipped.", this);
+		}
+
+		return scoredVehicleController;
 	}
 
 	private void CacheReferences()
