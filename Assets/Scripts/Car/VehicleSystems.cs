@@ -33,11 +33,20 @@ public class VehicleSystems : MonoBehaviour
     [Header("깜빡임")]
     public float blinkInterval = 0.4f;
 
+    [Header("깜빡이 자동취소")]
+    [Tooltip("켜진 깜빡이 방향으로 이 값(조향 입력 0~1) 이상 꺾여야 자동취소가 준비된다.")]
+    [SerializeField, Range(0f, 1f)] float signalArmSteerThreshold = 0.5f;
+    [Tooltip("자동취소 준비 조건이 이 시간(초) 이상 유지돼야 한다. 자이로 값이 순간적으로 튀는 것을 무시한다.")]
+    [SerializeField, Min(0f)] float signalArmHoldSeconds = 0.3f;
+    [Tooltip("준비된 뒤 조향 입력이 이 값 이하로 돌아오면 중립으로 보고 깜빡이를 끈다.")]
+    [SerializeField, Range(0f, 1f)] float signalCancelSteerThreshold = 0.05f;
+
     // ── 상태 ──
     bool engineOn, hazardOn, leftOn, rightOn, headlightOn, highBeamOn;
     bool seatBeltOn, hornOn;
     float blinkTimer; bool blinkState;
-    bool signalArmed;   // 깜빡이 자동취소용 (핸들이 한 번 꺾였는지)
+    bool signalArmed;   // 깜빡이 자동취소용 (핸들이 깜빡이 방향으로 충분히 꺾였는지)
+    float signalArmHoldTimer; // 깜빡이 방향으로 기준 이상 꺾인 채 유지된 시간
     void OnEnable()
     {
         SetInputEnabled(true);
@@ -146,7 +155,7 @@ public class VehicleSystems : MonoBehaviour
             leftOn = !leftOn;
             rightOn = false;
             hazardOn = false;
-            signalArmed = false;
+            ResetSignalAutoCancel();
         }
 
         // 우측 방향지시등
@@ -155,7 +164,7 @@ public class VehicleSystems : MonoBehaviour
             rightOn = !rightOn;
             leftOn = false;
             hazardOn = false;
-            signalArmed = false;
+            ResetSignalAutoCancel();
         }
 
         // 전조등
@@ -229,12 +238,39 @@ public class VehicleSystems : MonoBehaviour
     {
         if (!leftOn && !rightOn) return;                 // 깜빡이 켜졌을 때만 검사
         if (carController == null) return;               // 조향값을 읽을 곳이 없으면 자동취소 안 함
+
+        // 조향 입력은 음수가 좌회전, 양수가 우회전이다. 깜빡이 방향으로 꺾인 양만 본다
         float steer = carController.SteeringInput;
-        if (Mathf.Abs(steer) > 0.4f) signalArmed = true; // 핸들 꺾임
-        if (signalArmed && Mathf.Abs(steer) < 0.1f)      // 다시 중앙 → 자동 끔
+        float signalDirectionSteer = leftOn ? -steer : steer;
+
+        if (!signalArmed)
         {
-            leftOn = rightOn = false; signalArmed = false;
+            // 살짝 꺾거나 반대로 흔들린 것은 무시하고, 기준 이상으로 일정 시간 꺾여 있어야 준비한다
+            if (signalDirectionSteer >= signalArmSteerThreshold)
+            {
+                signalArmHoldTimer += Time.deltaTime;
+                signalArmed = signalArmHoldTimer >= signalArmHoldSeconds;
+            }
+            else
+            {
+                signalArmHoldTimer = 0f;
+            }
+
+            return;
         }
+
+        // 준비된 뒤 핸들이 중립으로 돌아오면 자동 끔
+        if (Mathf.Abs(steer) <= signalCancelSteerThreshold)
+        {
+            leftOn = rightOn = false;
+            ResetSignalAutoCancel();
+        }
+    }
+
+    void ResetSignalAutoCancel()
+    {
+        signalArmed = false;
+        signalArmHoldTimer = 0f;
     }
 
     void UpdateVisuals()

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -11,7 +12,7 @@ public class DrivingDeductedEvent : UnityEvent<DrivingDeduction>
 {
 }
 
-// Feeds the running course (section changes, vehicle speed, line contacts) into the scoring rules.
+// Feeds the running course (section changes, vehicle speed, vehicle controls, line contacts, traffic signals) into the scoring rules.
 [DisallowMultipleComponent]
 [RequireComponent(typeof(DrivingTestLevel))]
 public class DrivingTestScorer : MonoBehaviour
@@ -23,6 +24,8 @@ public class DrivingTestScorer : MonoBehaviour
 	[SerializeField] private MapGenerator mapGenerator;
 	[Tooltip("Optional. When empty, the Rigidbody of the vehicle that entered the course is used.")]
 	[SerializeField] private Rigidbody vehicleRigidbody;
+	[Tooltip("Stop lines of the signalized intersection. When empty, traffic signals are not scored.")]
+	[SerializeField] private List<TrafficSignalStopLine> signalStopLines = new List<TrafficSignalStopLine>();
 
 	[SerializeField] private DrivingScoringSettings scoringSettings = new DrivingScoringSettings();
 
@@ -34,6 +37,8 @@ public class DrivingTestScorer : MonoBehaviour
 	private MapRouteSection scoredSection;
 	private GameObject scoredVehicle;
 	private Rigidbody scoredVehicleRigidbody;
+	private Rigidbody controlSourceRigidbody;
+	private CarController scoredVehicleController;
 
 	public DrivingScoreSheet ScoreSheet => evaluator.ScoreSheet;
 	public int Score => evaluator.ScoreSheet.Score;
@@ -61,11 +66,27 @@ public class DrivingTestScorer : MonoBehaviour
 		mapGenerator.SubscribeTestCollision(HandleLineTouch);
 		drivingTestLevel.LevelReset += ResetScore;
 		drivingTestLevel.OnLevelCompleted.AddListener(HandleLevelCompleted);
+
+		foreach (TrafficSignalStopLine stopLine in signalStopLines)
+		{
+			if (stopLine != null)
+			{
+				stopLine.Crossed += HandleStopLineCrossed;
+			}
+		}
 	}
 
 	private void OnDisable()
 	{
 		evaluator.ScoreSheet.Deducted -= HandleDeducted;
+
+		foreach (TrafficSignalStopLine stopLine in signalStopLines)
+		{
+			if (stopLine != null)
+			{
+				stopLine.Crossed -= HandleStopLineCrossed;
+			}
+		}
 
 		if (mapGenerator != null)
 		{
@@ -99,7 +120,8 @@ public class DrivingTestScorer : MonoBehaviour
 		float speedKmh = vehicleBody.linearVelocity.magnitude * MetersPerSecondToKmh;
 		// Route points face the route direction, so this world-space projection grows as the vehicle advances.
 		float routeDistanceMeters = Vector3.Dot(vehicleBody.position, scoredSection.transform.forward);
-		evaluator.Tick(Time.deltaTime, speedKmh, routeDistanceMeters);
+		evaluator.Tick(Time.deltaTime, speedKmh, routeDistanceMeters, ReadVehicleState(vehicleBody),
+			GetApproachSignalState(vehicleBody.position));
 	}
 
 	public void ResetScore()
@@ -132,6 +154,31 @@ public class DrivingTestScorer : MonoBehaviour
 
 		SyncSection();
 		evaluator.RegisterLineTouch();
+	}
+
+	private void HandleStopLineCrossed(TrafficSignalStopLine stopLine, GameObject crossingObject)
+	{
+		if (drivingTestLevel.IsCompleted || !drivingTestLevel.IsTestVehicle(crossingObject))
+		{
+			return;
+		}
+
+		SyncSection();
+		evaluator.RegisterStopLineCrossing(stopLine.SignalState);
+	}
+
+	// Null once the vehicle is past every stop line, so stopping inside the intersection still counts as a long stop.
+	private TrafficLightState? GetApproachSignalState(Vector3 vehiclePosition)
+	{
+		foreach (TrafficSignalStopLine stopLine in signalStopLines)
+		{
+			if (stopLine != null && stopLine.IsApproachedFrom(vehiclePosition))
+			{
+				return stopLine.SignalState;
+			}
+		}
+
+		return null;
 	}
 
 	private void HandleLevelCompleted(GameObject vehicle)
@@ -169,6 +216,38 @@ public class DrivingTestScorer : MonoBehaviour
 		}
 
 		return scoredVehicleRigidbody;
+	}
+
+	// Null when the controls cannot be read, so the evaluator skips the control rules instead of failing them.
+	private DrivingVehicleState? ReadVehicleState(Rigidbody vehicleBody)
+	{
+		CarController vehicleController = GetVehicleController(vehicleBody);
+		if (vehicleController == null || vehicleController.systems == null)
+		{
+			return null;
+		}
+
+		VehicleSystems vehicleSystems = vehicleController.systems;
+		return new DrivingVehicleState(vehicleSystems.SeatBeltOn, vehicleSystems.EngineOn, vehicleSystems.HazardOn,
+			vehicleSystems.LeftSignalOn, vehicleSystems.RightSignalOn, vehicleController.ParkingBrakeOn);
+	}
+
+	// Looked up once per vehicle Rigidbody rather than every frame.
+	private CarController GetVehicleController(Rigidbody vehicleBody)
+	{
+		if (controlSourceRigidbody == vehicleBody)
+		{
+			return scoredVehicleController;
+		}
+
+		controlSourceRigidbody = vehicleBody;
+		scoredVehicleController = vehicleBody.GetComponentInParent<CarController>();
+		if (scoredVehicleController == null || scoredVehicleController.systems == null)
+		{
+			Debug.LogWarning("DrivingTestScorer: CarController or its VehicleSystems is missing; seat belt, engine, signal and parking brake rules are skipped.", this);
+		}
+
+		return scoredVehicleController;
 	}
 
 	private void CacheReferences()

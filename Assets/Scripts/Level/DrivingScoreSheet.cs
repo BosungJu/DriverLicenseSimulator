@@ -9,16 +9,24 @@ public enum DrivingDeductionReason
 	ParkingTimeOver,
 	StartTimeOver,
 	HillNotStopped,
-	HillShortStop,
 	HillRollback,
 	HillRollbackOver,
 	HillPassTimeOver,
 	SignalLongStop,
-	SignalPassTimeOver,
 	AccelerationTooSlow,
 	OverSpeed,
 	EmergencyStopLate,
-	CourseTimeOver
+	CourseTimeOver,
+	EmergencyHazardLate,
+	EmergencyHazardNotOff,
+	ParkingBrakeNotApplied,
+	TurnSignalMissing,
+	StartSignalMissing,
+	FinishSignalMissing,
+	EngineStalled,
+	SeatBeltNotWorn,
+	EmergencyHazardEarly,
+	SignalViolation
 }
 
 public sealed class DrivingDeduction

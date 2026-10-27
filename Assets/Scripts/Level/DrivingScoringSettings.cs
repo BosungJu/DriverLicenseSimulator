@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Defaults follow the class 1/2 ordinary course test scoring table.
+// Defaults follow the class 1/2 ordinary course test scoring table (도로교통법 시행규칙 별표 24, revised 2026-02-24).
+// The hill minimum stop and the hazard-before-stop rule come from test site practice, not the table text.
 [Serializable]
 public class DrivingScoringSettings
 {
@@ -12,6 +13,9 @@ public class DrivingScoringSettings
 	public const string EmergencyCommand = "on_emergency";
 	public const string HillCommand = "hill";
 	public const string SignalCommand = "signal";
+	public const string LeftTurnCommand = "left";
+	public const string RightTurnCommand = "right";
+	public const string FinishCommand = "end";
 
 	[Header("Result")]
 	[SerializeField] private int maxScore = 100;
@@ -35,8 +39,8 @@ public class DrivingScoringSettings
 	[Header("경사로 정지·출발")]
 	[Tooltip("hill_n step whose section is the stop zone.")]
 	[SerializeField] private int hillStopStep = 1;
+	[Tooltip("A shorter continuous stop counts as not stopping (disqualified). Test machines give the departure cue after 3 s.")]
 	[SerializeField] private float hillMinimumStopSeconds = 3f;
-	[SerializeField] private int hillShortStopPenalty = 10;
 	[SerializeField] private float hillRollbackPenaltyMeters = 0.5f;
 	[SerializeField] private int hillRollbackPenalty = 10;
 	[Tooltip("Disqualified when rolling back this far after stopping.")]
@@ -45,14 +49,17 @@ public class DrivingScoringSettings
 	[SerializeField] private float hillPassTimeLimitSeconds = 30f;
 
 	[Header("신호교차로")]
+	[Tooltip("Stopping this long is deducted. Waiting before the stop line on a red or yellow light is not counted, except in a right-turn section, which ignores the light.")]
 	[SerializeField] private float signalStopLimitSeconds = 20f;
 	[SerializeField] private int signalStopPenalty = 5;
-	[Tooltip("Disqualified when the intersection is not passed within this time.")]
-	[SerializeField] private float signalPassTimeLimitSeconds = 30f;
+	[Tooltip("When on, reaching the stop line on a yellow light is a signal violation (disqualified) like a red light.")]
+	[SerializeField] private bool isYellowSignalViolation = true;
 
 	[Header("직각주차")]
 	[SerializeField] private float parkingTimeLimitSeconds = 120f;
 	[SerializeField] private int parkingTimeOverPenalty = 10;
+	[Tooltip("Deducted when the parking brake is never applied during the right-angle parking course.")]
+	[SerializeField] private int parkingBrakePenalty = 10;
 
 	[Header("속도가속 구간")]
 	[SerializeField] private float accelerationTargetKmh = 20f;
@@ -65,9 +72,24 @@ public class DrivingScoringSettings
 
 	[Header("돌발상황 급정지")]
 	[SerializeField] private float emergencyStopTimeLimitSeconds = 2f;
+	[Tooltip("The hazard lights must be on within this time after the emergency stop.")]
+	[SerializeField] private float emergencyHazardTimeLimitSeconds = 3f;
 	[Tooltip("Speed at or below this counts as stopped.")]
 	[SerializeField] private float stoppedSpeedKmh = 1f;
+	[Tooltip("Applied to each failure: late stop, hazard lights on before stopping, late hazard lights, hazard lights still on when departing.")]
 	[SerializeField] private int emergencyPenalty = 10;
+
+	[Header("좌회전 또는 우회전")]
+	[Tooltip("Deducted when the matching turn signal is never on in a left/right section.")]
+	[SerializeField] private int turnSignalPenalty = 5;
+
+	[Header("방향지시등 작동")]
+	[Tooltip("Deducted when no turn signal is on before departing from the start, or while approaching the finish.")]
+	[SerializeField] private int startFinishSignalPenalty = 5;
+
+	[Header("시동상태 유지")]
+	[Tooltip("Deducted every time the engine turns off during the course. Engine RPM is not available.")]
+	[SerializeField] private int engineStallPenalty = 5;
 
 	[Header("전체 지정시간")]
 	[Tooltip("Designated time for the whole course (9 min 28 s in the scoring table).")]
@@ -83,24 +105,28 @@ public class DrivingScoringSettings
 	public float StartTimeLimitSeconds => startTimeLimitSeconds;
 	public int HillStopStep => hillStopStep;
 	public float HillMinimumStopSeconds => hillMinimumStopSeconds;
-	public int HillShortStopPenalty => hillShortStopPenalty;
 	public float HillRollbackPenaltyMeters => hillRollbackPenaltyMeters;
 	public int HillRollbackPenalty => hillRollbackPenalty;
 	public float HillRollbackDisqualifyMeters => hillRollbackDisqualifyMeters;
 	public float HillPassTimeLimitSeconds => hillPassTimeLimitSeconds;
 	public float SignalStopLimitSeconds => signalStopLimitSeconds;
 	public int SignalStopPenalty => signalStopPenalty;
-	public float SignalPassTimeLimitSeconds => signalPassTimeLimitSeconds;
+	public bool IsYellowSignalViolation => isYellowSignalViolation;
 	public float ParkingTimeLimitSeconds => parkingTimeLimitSeconds;
 	public int ParkingTimeOverPenalty => parkingTimeOverPenalty;
+	public int ParkingBrakePenalty => parkingBrakePenalty;
 	public float AccelerationTargetKmh => accelerationTargetKmh;
 	public int AccelerationPenalty => accelerationPenalty;
 	public float SpeedLimitKmh => speedLimitKmh;
 	public float OverSpeedIntervalSeconds => overSpeedIntervalSeconds;
 	public int OverSpeedPenalty => overSpeedPenalty;
 	public float EmergencyStopTimeLimitSeconds => emergencyStopTimeLimitSeconds;
+	public float EmergencyHazardTimeLimitSeconds => emergencyHazardTimeLimitSeconds;
 	public float StoppedSpeedKmh => stoppedSpeedKmh;
 	public int EmergencyPenalty => emergencyPenalty;
+	public int TurnSignalPenalty => turnSignalPenalty;
+	public int StartFinishSignalPenalty => startFinishSignalPenalty;
+	public int EngineStallPenalty => engineStallPenalty;
 	public float CourseTimeLimitSeconds => courseTimeLimitSeconds;
 	public float CourseTimeOverIntervalSeconds => courseTimeOverIntervalSeconds;
 	public int CourseTimeOverPenalty => courseTimeOverPenalty;

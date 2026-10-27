@@ -145,7 +145,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   steeringAction: {fileID: -8938896639299462803, guid: 052faaac586de48259a63d0c4782560b, type: 3}
-  deadZone: 0.05
+  deadZone: 0.15
   sensitivity: 1
   invert: 0
 --- !u!114 &4225057936732161056
