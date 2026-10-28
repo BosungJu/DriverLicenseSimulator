@@ -33,7 +33,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 1, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.8, y: 0.8, z: 0.8}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2120101853681845018}
@@ -132,6 +132,9 @@ MonoBehaviour:
   - {fileID: 3294769554906076518}
   highBeams: []
   blinkInterval: 0.4
+  signalArmSteerThreshold: 0.5
+  signalArmHoldSeconds: 0.3
+  signalCancelSteerThreshold: 0.05
 --- !u!114 &8321427756220147247
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -237,19 +240,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1636328039135095206, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalRotation.w
-      value: -0.64085644
+      value: 0.579228
       objectReference: {fileID: 0}
     - target: {fileID: 1636328039135095206, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0.4055798
+      value: 0.2988362
       objectReference: {fileID: 0}
     - target: {fileID: 1636328039135095206, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.29883623
+      value: 0.4055798
       objectReference: {fileID: 0}
     - target: {fileID: 1636328039135095206, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0.5792279
+      value: 0.6408564
       objectReference: {fileID: 0}
     - target: {fileID: 1636328039135095206, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -261,7 +264,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1636328039135095206, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 270
+      value: 90
       objectReference: {fileID: 0}
     - target: {fileID: 1886154877587640474, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalPosition.x
@@ -277,19 +280,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1886154877587640474, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalRotation.w
-      value: -0.579228
+      value: 0.64085644
       objectReference: {fileID: 0}
     - target: {fileID: 1886154877587640474, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0.2988362
+      value: 0.4055798
       objectReference: {fileID: 0}
     - target: {fileID: 1886154877587640474, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.4055798
+      value: 0.29883623
       objectReference: {fileID: 0}
     - target: {fileID: 1886154877587640474, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0.6408564
+      value: 0.5792279
       objectReference: {fileID: 0}
     - target: {fileID: 1886154877587640474, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -301,7 +304,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1886154877587640474, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 270
+      value: 90
       objectReference: {fileID: 0}
     - target: {fileID: 2421433744038517407, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalPosition.x
@@ -343,29 +346,45 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2659024410166231866, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
+      propertyPath: m_Name
+      value: LeftCam
+      objectReference: {fileID: 0}
     - target: {fileID: 4578920130580203393, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: field of view
-      value: 100
+      value: 60
       objectReference: {fileID: 0}
     - target: {fileID: 5949095731898711650, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_Name
       value: Car
       objectReference: {fileID: 0}
+    - target: {fileID: 6256476743398377100, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
+      propertyPath: m_Name
+      value: RightCam
+      objectReference: {fileID: 0}
     - target: {fileID: 6446141594175017636, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: field of view
-      value: 100
+      value: 60
       objectReference: {fileID: 0}
     - target: {fileID: 6593849231920558028, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.957
+      value: 0.9507
       objectReference: {fileID: 0}
     - target: {fileID: 6593849231920558028, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.242
+      value: 0.2808
+      objectReference: {fileID: 0}
+    - target: {fileID: 6637530235912819476, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9848078
+      objectReference: {fileID: 0}
+    - target: {fileID: 6637530235912819476, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.17364816
       objectReference: {fileID: 0}
     - target: {fileID: 6965775639642081555, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -0.3
+      value: -0.2
       objectReference: {fileID: 0}
     - target: {fileID: 7743524472138469506, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: carController
@@ -409,10 +428,12 @@ MonoBehaviour:
   driverEye: {fileID: 6983828320868256401}
   mirrorCam: {fileID: 7314971619334146849}
   mirrorRenderer: {fileID: 681786836417349454}
-  flipHorizontal: 0
+  displayMaterial: {fileID: 2100000, guid: 17c7399ed3e84f42897aa68f2cdbe421, type: 2}
   resolution: {x: 512, y: 256}
   fov: 30
   updateEveryNFrames: 1
+  alignCameraToGlassCenter: 0
+  flipHorizontal: 0
 --- !u!23 &681786836417349454 stripped
 MeshRenderer:
   m_CorrespondingSourceObject: {fileID: 3855228400602209995, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
@@ -473,10 +494,12 @@ MonoBehaviour:
   driverEye: {fileID: 6983828320868256401}
   mirrorCam: {fileID: 251396561513979396}
   mirrorRenderer: {fileID: 7723517837485569042}
-  flipHorizontal: 0
+  displayMaterial: {fileID: 2100000, guid: 17c7399ed3e84f42897aa68f2cdbe421, type: 2}
   resolution: {x: 512, y: 256}
   fov: 30
   updateEveryNFrames: 1
+  alignCameraToGlassCenter: 0
+  flipHorizontal: 0
 --- !u!4 &6782778505065102270 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7122426674970010171, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
