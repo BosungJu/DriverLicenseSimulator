@@ -20,7 +20,7 @@ public class MapLayerCollisionRelay : MonoBehaviour
 
     private void Awake()
     {
-        ReplaceMeshColliderWithLineTriggers();
+		ConfigureLayerCollision();
     }
 
     // Exits are not reported while this relay is disabled, so stale overlaps must not survive re-enabling.
@@ -39,7 +39,37 @@ public class MapLayerCollisionRelay : MonoBehaviour
         mapGenerator = generator;
         layerName = targetLayerName;
         routePointIndex = targetRoutePointIndex;
+		if (Application.isPlaying)
+		{
+			ConfigureLayerCollision();
+		}
     }
+
+	private void ConfigureLayerCollision()
+	{
+		// Awake runs before Initialize on newly generated objects; serialized layers configure on load.
+		if (string.IsNullOrEmpty(layerName) || hasLineTriggers)
+		{
+			return;
+		}
+
+		if (string.Equals(layerName, MapGenerator.LineLayerName, System.StringComparison.OrdinalIgnoreCase)
+			|| string.Equals(layerName, MapGenerator.OutlineLayerName, System.StringComparison.OrdinalIgnoreCase))
+		{
+			if (TryGetComponent(out MeshCollider lineCollider))
+			{
+				lineCollider.enabled = false;
+			}
+			return;
+		}
+
+		if (string.Equals(layerName, MapGenerator.CurbLayerName, System.StringComparison.OrdinalIgnoreCase))
+		{
+			return;
+		}
+
+		ReplaceMeshColliderWithLineTriggers();
+	}
 
     private void OnCollisionEnter(Collision collision)
     {
@@ -107,8 +137,8 @@ public class MapLayerCollisionRelay : MonoBehaviour
         return other.attachedRigidbody != null ? other.attachedRigidbody.gameObject : other.gameObject;
     }
 
-    // Painted lines must not lift the wheels, but a non-convex MeshCollider cannot be a trigger.
-    // In Play mode each painted segment gets its own trigger box; the edit-mode mesh collider stays for the generator.
+    // Remaining sensor layers use segment triggers instead of solid non-convex mesh colliders.
+    // Visual-only Line/Outline and solid Curb are handled before reaching this method.
     private void ReplaceMeshColliderWithLineTriggers()
     {
         if (!TryGetComponent(out MeshCollider lineMeshCollider)
