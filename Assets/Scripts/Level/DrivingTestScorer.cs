@@ -65,6 +65,7 @@ public class DrivingTestScorer : MonoBehaviour
 		mapGenerator.SubscribeLineCollision(HandleLineTouch);
 		mapGenerator.SubscribeTestCollision(HandleLineTouch);
 		drivingTestLevel.LevelReset += ResetScore;
+		drivingTestLevel.OnInstructionStarted.AddListener(HandleInstructionStarted);
 		drivingTestLevel.OnLevelCompleted.AddListener(HandleLevelCompleted);
 
 		foreach (TrafficSignalStopLine stopLine in signalStopLines)
@@ -97,6 +98,7 @@ public class DrivingTestScorer : MonoBehaviour
 		if (drivingTestLevel != null)
 		{
 			drivingTestLevel.LevelReset -= ResetScore;
+			drivingTestLevel.OnInstructionStarted.RemoveListener(HandleInstructionStarted);
 			drivingTestLevel.OnLevelCompleted.RemoveListener(HandleLevelCompleted);
 		}
 	}
@@ -143,6 +145,12 @@ public class DrivingTestScorer : MonoBehaviour
 
 		scoredSection = currentSection;
 		evaluator.BeginSection(currentSection.PointNumber, currentSection.Commands);
+	}
+
+	private void HandleInstructionStarted(int pointNumber, string command)
+	{
+		// Capture every point transition even when several physics callbacks precede Update.
+		SyncSection();
 	}
 
 	private void HandleLineTouch(GameObject otherObject)

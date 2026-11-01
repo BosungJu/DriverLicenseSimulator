@@ -16,6 +16,8 @@ public class DrivingScoringSettings
 	public const string LeftTurnCommand = "left";
 	public const string RightTurnCommand = "right";
 	public const string FinishCommand = "end";
+	public const int ParkingExitStep = 3;
+	public const int AccelerationExitStep = 1;
 
 	[Header("Result")]
 	[SerializeField] private int maxScore = 100;

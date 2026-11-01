@@ -48,11 +48,13 @@ public class ReportManager : MonoBehaviour
 
 	public event Action<string> ReportDataExported;
 
+	// Fills missing references from this GameObject before other components start using them.
 	private void Awake()
 	{
 		CacheReferences();
 	}
 
+	// Subscribes to course reset and completion; recording stays inactive when a required reference is missing.
 	private void OnEnable()
 	{
 		CacheReferences();
@@ -66,6 +68,7 @@ public class ReportManager : MonoBehaviour
 		drivingTestLevel.OnLevelCompleted.AddListener(HandleLevelCompleted);
 	}
 
+	// Unsubscribes the course listeners added in OnEnable.
 	private void OnDisable()
 	{
 		if (drivingTestLevel != null)
@@ -121,6 +124,7 @@ public class ReportManager : MonoBehaviour
 		ExportReportData();
 	}
 
+	// Clears recorded samples and timing state, and cancels a pending export, so a new course starts from zero.
 	public void ResetRecording()
 	{
 		samples.Clear();
@@ -130,6 +134,7 @@ public class ReportManager : MonoBehaviour
 		isExportPending = false;
 	}
 
+	// Only marks the export as pending; LateUpdate performs it after the scorer's final deductions.
 	private void HandleLevelCompleted(GameObject vehicle)
 	{
 		isExportPending = true;
@@ -176,6 +181,8 @@ public class ReportManager : MonoBehaviour
 		hasPreviousSample = true;
 	}
 
+	// Writes driving_log.csv and section_results.json into a new timestamped session folder, then raises
+	// ReportDataExported with that folder. On an IO or permission failure it logs an error and raises nothing.
 	private void ExportReportData()
 	{
 		string sessionDirectory = Path.Combine(Application.persistentDataPath, outputFolderName,
@@ -200,6 +207,8 @@ public class ReportManager : MonoBehaviour
 		ReportDataExported?.Invoke(sessionDirectory);
 	}
 
+	// Combines the final score sheet, the route sections with their sample counts, and every deduction
+	// into the section_results.json payload.
 	private DrivingSectionResultFile BuildSectionResultFile()
 	{
 		DrivingScoreSheet scoreSheet = drivingTestScorer.ScoreSheet;
@@ -247,6 +256,7 @@ public class ReportManager : MonoBehaviour
 		return resultFile;
 	}
 
+	// Returns how many recorded samples belong to the section with the given point number.
 	private int CountSamples(int pointNumber)
 	{
 		int sampleCount = 0;
@@ -279,6 +289,8 @@ public class ReportManager : MonoBehaviour
 		return recordedVehicleRigidbody;
 	}
 
+	// Looks up the CarController again only when the vehicle Rigidbody changes, and warns once per vehicle
+	// when control input or vehicle system state will be missing from the samples.
 	private CarController GetVehicleController(Rigidbody vehicleBody)
 	{
 		if (inputSourceRigidbody != vehicleBody)
@@ -298,6 +310,7 @@ public class ReportManager : MonoBehaviour
 		return recordedVehicleController;
 	}
 
+	// Keeps references assigned in the Inspector and fills empty ones from components on this GameObject.
 	private void CacheReferences()
 	{
 		if (drivingTestLevel == null)

@@ -78,6 +78,100 @@ public class DrivingScoringTests
 	#region Section Rules
 
 	[Test]
+	public void BeginSection_HillDownhillWithLeft_DoesNotRequireAnotherStop()
+	{
+		Begin(2, "hill_1");
+		evaluator.Tick(0.1f, StoppedKmh);
+		evaluator.Tick(3f, StoppedKmh);
+
+		Begin(3, "hill_2", "left");
+		evaluator.Tick(5f, 10f, vehicleState: Controls(leftSignal: true));
+		Begin(4, "left");
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[Test]
+	public void BeginSection_ParkingExitWithLeft_StopsTimerAndKeepsExitLineAndTurnRules()
+	{
+		Begin(7, "T_Test_0");
+		evaluator.Tick(60f, StoppedKmh);
+		Begin(8, "T_Test_1");
+		evaluator.Tick(30f, StoppedKmh);
+		Begin(9, "T_Test_2");
+		evaluator.Tick(29f, StoppedKmh, vehicleState: Controls(parkingBrake: true));
+
+		Begin(10, "T_Test_3", "left");
+		evaluator.Tick(5f, StoppedKmh, vehicleState: Controls());
+		evaluator.RegisterLineTouch();
+		Begin(11, "signal");
+
+		Assert.That(ScoreSheet.Deductions.Count, Is.EqualTo(2));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.ParkingLineTouch));
+		Assert.That(ScoreSheet.Deductions[1].Reason, Is.EqualTo(DrivingDeductionReason.TurnSignalMissing));
+		Assert.That(ScoreSheet.Deductions[1].PointNumber, Is.EqualTo(10));
+	}
+
+	[Test]
+	public void BeginSection_ParkingExitWithoutBrake_JudgesAtExitPoint()
+	{
+		Begin(9, "T_Test_2");
+		evaluator.Tick(1f, StoppedKmh, vehicleState: Controls());
+
+		Begin(10, "T_Test_3", "left");
+
+		Assert.That(ScoreSheet.Deductions.Count, Is.EqualTo(1));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.ParkingBrakeNotApplied));
+		Assert.That(ScoreSheet.Deductions[0].PointNumber, Is.EqualTo(9));
+	}
+
+	[TestCase(19f, 10)]
+	[TestCase(20f, 0)]
+	public void BeginSection_AccelerationExit_JudgesOnlyRunBeforeExit(float speedKmh, int expectedPenalty)
+	{
+		Begin(13, "fast_0");
+		evaluator.Tick(1f, speedKmh);
+
+		Begin(14, "fast_1");
+		evaluator.Tick(1f, 5f);
+		Begin(15, "end");
+		evaluator.CompleteCourse();
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedPenalty));
+	}
+
+	[TestCase(2.9f, 0)]
+	[TestCase(3f, 3)]
+	public void Tick_AfterAccelerationExit_EnforcesNormalSpeedLimit(float seconds, int expectedPenalty)
+	{
+		Begin(13, "fast_0");
+		evaluator.Tick(1f, 21f);
+		Begin(14, "fast_1");
+
+		evaluator.Tick(seconds, 21f);
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedPenalty));
+		if (expectedPenalty > 0)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.OverSpeed));
+		}
+	}
+
+	[Test]
+	public void BeginSection_SecondParkingCourse_StartsFreshTimeAndBrakeState()
+	{
+		Begin(7, "T_Test_0");
+		evaluator.Tick(119f, StoppedKmh, vehicleState: Controls(parkingBrake: true));
+		Begin(10, "T_Test_3");
+		Begin(11, "T_Test_0");
+		evaluator.Tick(2f, StoppedKmh, vehicleState: Controls());
+		Begin(12, "T_Test_3");
+
+		Assert.That(ScoreSheet.Deductions.Count, Is.EqualTo(1));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.ParkingBrakeNotApplied));
+	}
+
+	[Test]
 	public void Tick_StartNotPassedWithin30Seconds_Disqualifies()
 	{
 		Begin(0, "start");
