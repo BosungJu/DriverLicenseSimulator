@@ -51,6 +51,54 @@ public class MapRouteInstructionTests
     #region Current Map Regression
 
 	[Test]
+	public void TryParse_BongdamCsv_MapsSixteenPointsAndCompletesWithoutDeductions()
+	{
+		string csvPath = Path.Combine(Application.dataPath, "Resources", "MapData", "Data_Road_Bongdam_Points.csv");
+		List<MapData> mapData = CsvParaser.GetMapDataFromCsvFile(csvPath);
+		List<MapData> points = mapData.FindAll(point => point.Name == "Point"
+			&& string.Equals(point.Layer, "Point", System.StringComparison.OrdinalIgnoreCase));
+		points.Sort((left, right) => left.PosZ.CompareTo(right.PosZ));
+		List<MapData> dataTexts = mapData.FindAll(data => data.Name == "Text"
+			&& string.Equals(data.Layer, "Data", System.StringComparison.OrdinalIgnoreCase));
+		Assert.That(points.Count, Is.EqualTo(16));
+		Assert.That(dataTexts.Count, Is.EqualTo(1));
+		Assert.That(MapRouteInstruction.TryParse(dataTexts[0].Text, points,
+			out IReadOnlyList<MapRouteInstruction> instructions, out string error), Is.True, error);
+		string[] expected = { "start", "hill_0", "hill_1", "hill_2 | left", "left", "signal", "right",
+			"T_Test_0", "T_Test_1", "T_Test_2", "T_Test_3 | left", "signal", "left", "fast_0", "fast_1", "end" };
+		var evaluator = new DrivingTestScoreEvaluator(new DrivingScoringSettings());
+		var drivingControls = new DrivingVehicleState(true, true, false, true, true, false);
+		var parkingControls = new DrivingVehicleState(true, true, false, false, false, true);
+
+		for (int i = 0; i < instructions.Count; i++)
+		{
+			Assert.That(instructions[i].PointNumber, Is.EqualTo(i));
+			Assert.That(instructions[i].Text, Is.EqualTo(expected[i]));
+			evaluator.BeginSection(i, instructions[i].Commands);
+			if (i == 2)
+			{
+				evaluator.Tick(0.1f, 0f);
+				evaluator.Tick(3f, 0f);
+			}
+			else if (i == 9)
+			{
+				evaluator.Tick(1f, 0f, vehicleState: parkingControls);
+			}
+			else
+			{
+				evaluator.Tick(1f, i == 13 ? 20f : 10f, vehicleState: drivingControls);
+			}
+		}
+
+		evaluator.CompleteCourse();
+
+		Assert.That(evaluator.IsCourseRunning, Is.False);
+		Assert.That(evaluator.ScoreSheet.Deductions, Is.Empty);
+		Assert.That(evaluator.ScoreSheet.Score, Is.EqualTo(100));
+		Assert.That(evaluator.ScoreSheet.IsPassed, Is.True);
+	}
+
+	[Test]
 	public void TryParse_CurrentMapCsv_MapsAllZeroBasedPointsToCommands()
 	{
 		string csvPath = Path.Combine(Application.dataPath, "Resources", "MapData", "옥천학원수정.csv");

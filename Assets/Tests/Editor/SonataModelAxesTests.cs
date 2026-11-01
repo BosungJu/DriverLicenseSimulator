@@ -6,6 +6,12 @@ using UnityEngine;
 public class SonataModelAxesTests
 {
 	private const string AssetRoot = "Assets/Resources/Car/BasicModel/SonataURP";
+	private const float HeadlinerCheckMinHeightMeters = 1.15f;
+	private const float RoofRayHeightMeters = 2f;
+	// The model uses a 12 mm inset; allow 4 mm for import and collider precision.
+	private const float MinimumRoofClearanceMeters = 0.008f;
+	private const int MinimumCheckedHeadlinerVertices = 100;
+	private const int HeadlinerTriangleSubdivisions = 8;
 	private GameObject model;
 
 	[SetUp]
@@ -74,6 +80,80 @@ public class SonataModelAxesTests
 			if (!hasFunctionalAxis)
 			{
 				Assert.Less(Quaternion.Angle(child.localRotation, Quaternion.identity), 0.01f, child.name);
+			}
+		}
+	}
+
+	[Test]
+	public void Model_Headliner_RemainsInsideRoofAtEveryLod()
+	{
+		for (int level = 0; level < 3; level++)
+		{
+			Transform lod = model.transform.Find("SonataURP_Model/LOD" + level);
+			Assert.IsNotNull(lod, "LOD" + level);
+			MeshFilter[] meshes = lod.GetComponentsInChildren<MeshFilter>(true);
+			MeshFilter roof = Array.Find(meshes, mesh => mesh.name == "Roof__Crimson metallic clearcoat");
+			MeshFilter headliner = Array.Find(meshes, mesh => mesh.name == "Roof__Pale headliner");
+			Assert.IsNotNull(roof, "LOD" + level + " roof");
+			Assert.IsNotNull(headliner, "LOD" + level + " headliner");
+			MeshCollider roofCollider = roof.gameObject.AddComponent<MeshCollider>();
+			roofCollider.sharedMesh = roof.sharedMesh;
+			Physics.SyncTransforms();
+
+			int checkedVertices = 0;
+			foreach (Vector3 vertex in headliner.sharedMesh.vertices)
+			{
+				Vector3 worldPosition = headliner.transform.TransformPoint(vertex);
+				if (worldPosition.y < HeadlinerCheckMinHeightMeters)
+				{
+					continue;
+				}
+
+				Ray roofRay = new Ray(new Vector3(worldPosition.x, RoofRayHeightMeters, worldPosition.z), Vector3.down);
+				if (!roofCollider.Raycast(roofRay, out RaycastHit roofHit, RoofRayHeightMeters))
+				{
+					continue;
+				}
+
+				Assert.LessOrEqual(worldPosition.y, roofHit.point.y - MinimumRoofClearanceMeters,
+					"LOD" + level + " headliner protrudes through roof at " + worldPosition);
+				checkedVertices++;
+			}
+
+			Assert.Greater(checkedVertices, MinimumCheckedHeadlinerVertices, "LOD" + level + " roof coverage");
+			AssertHeadlinerFacesInsideRoof(headliner, roofCollider, level);
+		}
+	}
+
+	private static void AssertHeadlinerFacesInsideRoof(MeshFilter headliner, MeshCollider roofCollider, int level)
+	{
+		Vector3[] vertices = headliner.sharedMesh.vertices;
+		int[] triangles = headliner.sharedMesh.triangles;
+		for (int triangle = 0; triangle < triangles.Length; triangle += 3)
+		{
+			Vector3 first = headliner.transform.TransformPoint(vertices[triangles[triangle]]);
+			Vector3 second = headliner.transform.TransformPoint(vertices[triangles[triangle + 1]]);
+			Vector3 third = headliner.transform.TransformPoint(vertices[triangles[triangle + 2]]);
+			// Safe vertices alone do not prevent a face from crossing the curved roof.
+			for (int firstStep = 0; firstStep <= HeadlinerTriangleSubdivisions; firstStep++)
+			{
+				for (int secondStep = 0; secondStep <= HeadlinerTriangleSubdivisions - firstStep; secondStep++)
+				{
+					float secondWeight = (float)firstStep / HeadlinerTriangleSubdivisions;
+					float thirdWeight = (float)secondStep / HeadlinerTriangleSubdivisions;
+					Vector3 sample = first * (1f - secondWeight - thirdWeight) + second * secondWeight + third * thirdWeight;
+					if (sample.y < HeadlinerCheckMinHeightMeters)
+					{
+						continue;
+					}
+
+					Ray roofRay = new Ray(new Vector3(sample.x, RoofRayHeightMeters, sample.z), Vector3.down);
+					if (roofCollider.Raycast(roofRay, out RaycastHit roofHit, RoofRayHeightMeters))
+					{
+						Assert.LessOrEqual(sample.y, roofHit.point.y,
+							"LOD" + level + " headliner face protrudes through roof at " + sample);
+					}
+				}
 			}
 		}
 	}

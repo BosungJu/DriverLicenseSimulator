@@ -17,8 +17,12 @@ public class MapLayerEnterEvent : UnityEvent<string, GameObject>
 public class MapGenerator : MonoBehaviour
 {
     private const float MinimumLineWidth = 0.01f;
+	private const float MinimumHillBarrierWidth = 0.4f;
+	private const float MinimumHillBarrierHeight = 1f;
     private const float FullAngle = 360f;
-    private const string LineLayerName = "Line";
+    internal const string LineLayerName = "Line";
+	internal const string OutlineLayerName = "Outline";
+	internal const string CurbLayerName = "Curb";
     private const string TestLayerName = "T_Test";
     private const string RoutePointLayerName = "Point";
     private const string GeneratedLineMeshName = "Generated Line Layer";
@@ -28,6 +32,7 @@ public class MapGenerator : MonoBehaviour
     private const string GeneratedAdditionalLinesName = "Generated Additional Lines";
     private const string GeneratedBasePlaneName = "Generated Base Plane";
     private const string GeneratedHillSurfaceName = "Generated Hill Surface";
+	private const string GeneratedHillCurbsName = "Generated Hill Curbs";
 
     public string mapName;
     public Mesh CurrentMesh => mesh;
@@ -77,6 +82,8 @@ public class MapGenerator : MonoBehaviour
     [Header("CAD Settings")]
     [SerializeField] private float cadUnitScale = 0.001f;
     [SerializeField] private float defaultLineWidth = 0.2f;
+	[SerializeField, Min(0.01f)] private float curbHeight = 0.15f;
+	[SerializeField] private Material curbMaterial;
     [SerializeField] private bool centerMapOnOrigin = true;
     [SerializeField] private bool preferOriginCsv = true;
     [SerializeField] private bool skipAnnotationLayers = true;
@@ -108,7 +115,14 @@ public class MapGenerator : MonoBehaviour
     [SerializeField] private string legacyHillMapName = "MapData/옥천학원수정";
     [SerializeField] private string hillLayerName = "Hill";
     [SerializeField] private float hillHeight = 1.5f;
+	[SerializeField] private bool useTestCourseHillProfile = true;
+	[SerializeField, Min(0f)] private float hillCurbPadding = 0.4f;
     [SerializeField] private Material hillMaterial;
+	[SerializeField] private Material hillCurbMaterial;
+	[SerializeField, Min(MinimumHillBarrierWidth)] private float hillCurbWidth = MinimumHillBarrierWidth;
+	[SerializeField, Min(MinimumHillBarrierHeight)]
+	[Tooltip("Height above the road. Keep this taller than the vehicle bumper/body; verify vehicle collision at the intended speed.")]
+	private float hillBarrierHeight = 1.5f;
 
     private List<Vector3> vertices = new List<Vector3>();
     private List<int> triangles = new List<int>();
@@ -122,15 +136,17 @@ public class MapGenerator : MonoBehaviour
     private IReadOnlyList<MapRouteInstruction> routeInstructions = System.Array.Empty<MapRouteInstruction>();
     private IReadOnlyList<MapRouteSection> routeSections = System.Array.Empty<MapRouteSection>();
     private Vector2 cadOrigin;
-    private bool hasHillProfile;
-    private float hillProfileMinY;
-    private float hillProfileMaxY;
-    private List<float> hillProfileXValues = new List<float>();
+	private bool isDrawingCurb;
+	private List<Vector2> activeCurbUVs;
+	private float curbTextureDistance;
+	private readonly MapHillProfile hillProfile = new MapHillProfile();
+	private readonly List<float> hillSegmentCuts = new List<float>();
 
     private sealed class LayerMeshData
     {
         public readonly List<Vector3> Vertices = new List<Vector3>();
         public readonly List<int> Triangles = new List<int>();
+		public readonly List<Vector2> UVs = new List<Vector2>();
     }
 
     public void SetMap(string s)
@@ -149,8 +165,7 @@ public class MapGenerator : MonoBehaviour
     {
         ClearMap();
         annotationLayerSet = null;
-        hasHillProfile = false;
-        hillProfileXValues.Clear();
+		hillProfile.Clear();
         if (mapDataList == null || mapDataList.Count == 0)
         {
             MapGenerated?.Invoke();
@@ -159,7 +174,11 @@ public class MapGenerator : MonoBehaviour
 
         cadOrigin = GetCadOrigin(mapDataList);
         var hillDataList = GetHillData(mapDataList);
-        BuildHillProfile(hillDataList);
+		hillProfile.Build(hillDataList, cadUnitScale, hillHeight);
+		if (useTestCourseHillProfile)
+		{
+			hillProfile.ApplyCourseDimensions(cadUnitScale);
+		}
 
         if (generateBasePlane)
         {
@@ -168,7 +187,7 @@ public class MapGenerator : MonoBehaviour
 
         if (generateHillSurface)
         {
-            GenerateHillSurface(hillDataList);
+            GenerateHillSurface();
         }
 
         foreach (var data in mapDataList)
@@ -233,14 +252,9 @@ public class MapGenerator : MonoBehaviour
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
         }
 
-        if (HasSensorMesh(GeneratedLineMeshName) && HasSensorMesh(GeneratedTestMeshName))
-        {
-            return;
-        }
-
         string resolvedMapName = ResolveMapName(mapName);
         List<MapData> mapDataList = CsvParaser.GetMapData(resolvedMapName);
-        if (mapDataList.Count == 0)
+        if (mapDataList.Count == 0 || HasGeneratedLayerMeshes(mapDataList))
         {
             return;
         }
@@ -250,7 +264,27 @@ public class MapGenerator : MonoBehaviour
         UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
     }
 
-    private bool HasSensorMesh(string childName)
+	private bool HasGeneratedLayerMeshes(List<MapData> mapDataList)
+	{
+		var checkedLayers = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+		foreach (MapData data in mapDataList)
+		{
+			if (!ShouldDraw(data) || !checkedLayers.Add(data.Layer))
+			{
+				continue;
+			}
+
+			bool requiresCollider = !string.Equals(data.Layer, LineLayerName, System.StringComparison.OrdinalIgnoreCase)
+				&& !string.Equals(data.Layer, OutlineLayerName, System.StringComparison.OrdinalIgnoreCase);
+			if (!HasSensorMesh(GetLayerChildName(data.Layer), requiresCollider))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+    private bool HasSensorMesh(string childName, bool requiresCollider)
     {
         Transform child = transform.Find(childName);
         return child != null
@@ -260,8 +294,8 @@ public class MapGenerator : MonoBehaviour
             && child.TryGetComponent<MeshRenderer>(out var meshRenderer)
             && meshRenderer.enabled
             && meshRenderer.sharedMaterial != null
-            && child.TryGetComponent<MeshCollider>(out var meshCollider)
-            && meshCollider.sharedMesh == meshFilter.sharedMesh;
+			&& (!requiresCollider || (child.TryGetComponent<MeshCollider>(out var meshCollider)
+				&& meshCollider.sharedMesh == meshFilter.sharedMesh));
     }
 
     [Button]
@@ -296,12 +330,18 @@ public class MapGenerator : MonoBehaviour
             lineCombineInstances.Add(new CombineInstance { mesh = mesh });
         }
 
+		Mesh curbMesh = null;
         foreach (Transform child in transform)
         {
             if (child.TryGetComponent<MapLayerCollisionRelay>(out _)
                 && child.TryGetComponent<MeshFilter>(out var layerFilter)
                 && layerFilter.sharedMesh != null)
             {
+				if (string.Equals(child.name, GetLayerChildName(CurbLayerName), System.StringComparison.OrdinalIgnoreCase))
+				{
+					curbMesh = layerFilter.sharedMesh;
+					continue;
+				}
                 lineCombineInstances.Add(new CombineInstance { mesh = layerFilter.sharedMesh });
             }
         }
@@ -316,6 +356,8 @@ public class MapGenerator : MonoBehaviour
         AddSubMeshInstance(subMeshInstances, subMeshNames, lineMesh, "Lines");
         AddSubMeshInstance(subMeshInstances, subMeshNames, GetGeneratedChildMesh(GeneratedBasePlaneName), "Base Plane");
         AddSubMeshInstance(subMeshInstances, subMeshNames, GetGeneratedChildMesh(GeneratedHillSurfaceName), "Hill Surface");
+		AddSubMeshInstance(subMeshInstances, subMeshNames, GetGeneratedChildMesh(GeneratedHillCurbsName), "Hill Curbs");
+		AddSubMeshInstance(subMeshInstances, subMeshNames, curbMesh, "Curbs");
 
         Mesh meshAsset = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
         meshAsset.CombineMeshes(subMeshInstances.ToArray(), false, false);
@@ -518,11 +560,41 @@ public class MapGenerator : MonoBehaviour
             return;
         }
 
-        Vector3 s = ToWorldPoint(start);
-        Vector3 e = ToWorldPoint(end);
+		float padding = GetHillPadding(width);
+		hillProfile.GetSegmentCuts(start, end, padding, hillSegmentCuts);
+		for (int i = 0; i < hillSegmentCuts.Count - 1; i++)
+		{
+			DrawLineSegment(Vector2.Lerp(start, end, hillSegmentCuts[i]),
+				Vector2.Lerp(start, end, hillSegmentCuts[i + 1]), width, padding);
+		}
+	}
+
+	private float GetHillPadding(float width)
+	{
+		return isDrawingCurb && cadUnitScale > 0f ? Mathf.Max(hillCurbPadding, width * 0.5f) / cadUnitScale : 0f;
+	}
+
+	private void DrawLineSegment(Vector2 start, Vector2 end, float width, float padding)
+	{
+		const float minimumSegmentLengthMeters = 0.001f;
+		if ((end - start).magnitude * cadUnitScale < minimumSegmentLengthMeters)
+		{
+			return;
+		}
+		hillProfile.GetSegmentHeights(start, end, padding, out float startHeight, out float endHeight);
+		Vector3 s = ToGroundPoint(start);
+		Vector3 e = ToGroundPoint(end);
+		s.y = startHeight + (isDrawingCurb ? 0f : lineHeightOffset);
+		e.y = endHeight + (isDrawingCurb ? 0f : lineHeightOffset);
+		if (isDrawingCurb)
+		{
+			DrawCurbSegment(s, e, width, curbHeight, vertices, triangles, 0f, activeCurbUVs, curbTextureDistance);
+			curbTextureDistance += Vector3.Distance(s, e);
+			return;
+		}
 
         Vector3 forward = (e - s).normalized;
-        Vector3 side = Vector3.Cross(Vector3.up, forward) * (width * 0.5f);
+        Vector3 side = Vector3.Cross(Vector3.up, forward).normalized * (width * 0.5f);
 
         int baseIdx = vertices.Count;
 
@@ -536,6 +608,65 @@ public class MapGenerator : MonoBehaviour
         triangles.Add(baseIdx); triangles.Add(baseIdx + 2); triangles.Add(baseIdx + 1);
         triangles.Add(baseIdx + 2); triangles.Add(baseIdx + 3); triangles.Add(baseIdx + 1);
     }
+
+	private void DrawCurbSegment(Vector3 start, Vector3 end, float width, float rise,
+		List<Vector3> meshVertices, List<int> meshTriangles, float bottomHeight = 0f,
+		List<Vector2> meshUVs = null, float textureStart = 0f)
+	{
+		float textureEnd = textureStart + Vector3.Distance(start, end);
+		float bottomStartV = bottomHeight - start.y;
+		float bottomEndV = bottomHeight - end.y;
+		Vector3 direction = end - start;
+		direction.y = 0f;
+		direction.Normalize();
+		Vector3 side = Vector3.Cross(Vector3.up, direction).normalized * (width * 0.5f);
+		Vector3 height = Vector3.up * Mathf.Max(rise, MinimumLineWidth);
+		// Overlap adjacent segments to close small notches at curve and corner joints.
+		start -= direction * (width * 0.5f);
+		end += direction * (width * 0.5f);
+		Vector3 bottomStart = start;
+		Vector3 bottomEnd = end;
+		// Retaining sides reach the flat ground beneath the hill rather than hanging above it.
+		bottomStart.y = bottomHeight;
+		bottomEnd.y = bottomHeight;
+		Vector3[] corners =
+		{
+			bottomStart - side, bottomStart + side, bottomEnd - side, bottomEnd + side,
+			start - side + height, start + side + height, end - side + height, end + side + height
+		};
+		// Independent face vertices keep the curb's edges sharp after normal calculation.
+		int[] faceCorners = { 0, 1, 2, 3, 4, 6, 5, 7, 0, 2, 4, 6, 1, 5, 3, 7, 0, 4, 1, 5, 2, 3, 6, 7 };
+		float u0 = textureStart - width * 0.5f;
+		float u1 = textureEnd + width * 0.5f;
+		float vTop = Mathf.Max(rise, MinimumLineWidth);
+		Vector2[] faceUVs =
+		{
+			new Vector2(u0, 0f), new Vector2(u0, width), new Vector2(u1, 0f), new Vector2(u1, width),
+			new Vector2(u0, 0f), new Vector2(u1, 0f), new Vector2(u0, width), new Vector2(u1, width),
+			new Vector2(u0, bottomStartV), new Vector2(u1, bottomEndV), new Vector2(u0, vTop), new Vector2(u1, vTop),
+			new Vector2(u0, bottomStartV), new Vector2(u0, vTop), new Vector2(u1, bottomEndV), new Vector2(u1, vTop),
+			new Vector2(0f, bottomStartV), new Vector2(0f, vTop), new Vector2(width, bottomStartV), new Vector2(width, vTop),
+			new Vector2(0f, bottomEndV), new Vector2(width, bottomEndV), new Vector2(0f, vTop), new Vector2(width, vTop)
+		};
+		for (int face = 0; face < faceCorners.Length; face += 4)
+		{
+			int firstVertex = meshVertices.Count;
+			for (int corner = 0; corner < 4; corner++)
+			{
+				meshVertices.Add(corners[faceCorners[face + corner]]);
+				if (meshUVs != null)
+				{
+					meshUVs.Add(faceUVs[face + corner]);
+				}
+			}
+			meshTriangles.Add(firstVertex);
+			meshTriangles.Add(firstVertex + 1);
+			meshTriangles.Add(firstVertex + 2);
+			meshTriangles.Add(firstVertex + 2);
+			meshTriangles.Add(firstVertex + 1);
+			meshTriangles.Add(firstVertex + 3);
+		}
+	}
 
     public void DrawPolyline(Vector2[] points, float width, bool isClosed)
     {
@@ -665,7 +796,7 @@ public class MapGenerator : MonoBehaviour
         {
             string childName = GetLayerChildName(layer.Key);
             ClearGeneratedChild(childName);
-            CreateLayerMesh(childName, $"{childName} Mesh", layer.Value.Vertices, layer.Value.Triangles, layer.Key);
+            CreateLayerMesh(childName, $"{childName} Mesh", layer.Value.Vertices, layer.Value.Triangles, layer.Key, layer.Value.UVs);
         }
 
     }
@@ -694,8 +825,12 @@ public class MapGenerator : MonoBehaviour
         RouteInstructionError = string.Empty;
         vertices = otherLayerVertices;
         triangles = otherLayerTriangles;
+		isDrawingCurb = false;
+		activeCurbUVs = null;
+		curbTextureDistance = 0f;
         ClearGeneratedChild(GeneratedBasePlaneName);
         ClearGeneratedChild(GeneratedHillSurfaceName);
+		ClearGeneratedChild(GeneratedHillCurbsName);
         ClearGeneratedChild(GeneratedLineMeshName);
         ClearGeneratedChild(GeneratedTestMeshName);
         ClearGeneratedChild(GeneratedRoutePointsName);
@@ -712,10 +847,12 @@ public class MapGenerator : MonoBehaviour
 
     private void SelectMeshBuffers(string layerName)
     {
+		isDrawingCurb = string.Equals(layerName, CurbLayerName, System.StringComparison.OrdinalIgnoreCase);
         if (layerName == null)
         {
             vertices = otherLayerVertices;
             triangles = otherLayerTriangles;
+			activeCurbUVs = null;
             return;
         }
 
@@ -727,6 +864,7 @@ public class MapGenerator : MonoBehaviour
 
         vertices = layerData.Vertices;
         triangles = layerData.Triangles;
+		activeCurbUVs = isDrawingCurb ? layerData.UVs : null;
     }
 
     private string GetLayerChildName(string layerName)
@@ -749,9 +887,23 @@ public class MapGenerator : MonoBehaviour
         string meshName,
         List<Vector3> meshVertices,
         List<int> meshTriangles,
-        string layerName)
+        string layerName, List<Vector2> meshUVs)
     {
-        GameObject child = CreateChildMesh(childName, meshName, meshVertices, meshTriangles, lineMaterial, true);
+		bool isOutline = string.Equals(layerName, OutlineLayerName, System.StringComparison.OrdinalIgnoreCase);
+		bool hasCollision = !isOutline && !string.Equals(layerName, LineLayerName, System.StringComparison.OrdinalIgnoreCase);
+		Material layerMaterial = lineMaterial;
+		if (isOutline)
+		{
+			layerMaterial = lineMaterial != null ? new Material(lineMaterial) : GetDefaultMaterial(childName);
+			layerMaterial.name = $"{childName} Material";
+			layerMaterial.color = Color.yellow;
+		}
+		else if (string.Equals(layerName, CurbLayerName, System.StringComparison.OrdinalIgnoreCase) && curbMaterial != null)
+		{
+			layerMaterial = curbMaterial;
+		}
+		GameObject child = CreateChildMesh(childName, meshName, meshVertices, meshTriangles, layerMaterial, hasCollision,
+			string.Equals(layerName, CurbLayerName, System.StringComparison.OrdinalIgnoreCase) ? meshUVs : null);
         if (child == null)
         {
             return;
@@ -949,7 +1101,7 @@ public class MapGenerator : MonoBehaviour
 
     private void DestroyGeneratedMaterial(Material targetMaterial)
     {
-        if (targetMaterial == planeMaterial || targetMaterial == lineMaterial || targetMaterial == hillMaterial)
+        if (targetMaterial == planeMaterial || targetMaterial == lineMaterial || targetMaterial == hillMaterial || targetMaterial == hillCurbMaterial || targetMaterial == curbMaterial)
         {
             return;
         }
@@ -987,6 +1139,7 @@ public class MapGenerator : MonoBehaviour
 
     private void DrawMapEntity(MapData data)
     {
+		curbTextureDistance = 0f;
         if (!ShouldDraw(data))
         {
             return;
@@ -1115,9 +1268,9 @@ public class MapGenerator : MonoBehaviour
         CreateChildMesh(GeneratedBasePlaneName, $"{GeneratedBasePlaneName} Mesh", planeVertices, planeTriangles, planeMaterial, true);
     }
 
-    private void GenerateHillSurface(List<MapData> hillDataList)
+    private void GenerateHillSurface()
     {
-        if (!hasHillProfile)
+        if (!hillProfile.IsValid)
         {
             return;
         }
@@ -1125,18 +1278,18 @@ public class MapGenerator : MonoBehaviour
         var hillVertices = new List<Vector3>();
         var hillTriangles = new List<int>();
 
-        for (int i = 0; i < hillProfileXValues.Count; i++)
+        for (int i = 0; i < hillProfile.Stations.Count; i++)
         {
-            float height = GetHillProfileHeight(i, hillProfileXValues.Count);
-            Vector3 lower = ToGroundPoint(new Vector2(hillProfileXValues[i], hillProfileMinY));
-            Vector3 upper = ToGroundPoint(new Vector2(hillProfileXValues[i], hillProfileMaxY));
+            float height = hillProfile.GetStationHeight(i);
+            Vector3 lower = ToGroundPoint(hillProfile.ToCadPoint(hillProfile.Stations[i], hillProfile.MinAcross));
+            Vector3 upper = ToGroundPoint(hillProfile.ToCadPoint(hillProfile.Stations[i], hillProfile.MaxAcross));
             lower.y = height;
             upper.y = height;
             hillVertices.Add(lower);
             hillVertices.Add(upper);
         }
 
-        for (int i = 0; i < hillProfileXValues.Count - 1; i++)
+        for (int i = 0; i < hillProfile.Stations.Count - 1; i++)
         {
             int baseIdx = i * 2;
             hillTriangles.Add(baseIdx);
@@ -1147,65 +1300,80 @@ public class MapGenerator : MonoBehaviour
             hillTriangles.Add(baseIdx + 3);
         }
 
+		// Separate vertices keep the side walls vertical without smoothing the road's edge normals.
+		for (int i = 0; i < hillProfile.Stations.Count - 1; i++)
+		{
+			int baseIndex = i * 2;
+			AddHillSideWall(hillVertices[baseIndex], hillVertices[baseIndex + 2], false, hillVertices, hillTriangles);
+			AddHillSideWall(hillVertices[baseIndex + 1], hillVertices[baseIndex + 3], true, hillVertices, hillTriangles);
+		}
+
         Material surfaceMaterial = hillMaterial != null ? hillMaterial : planeMaterial;
         CreateChildMesh(GeneratedHillSurfaceName, $"{GeneratedHillSurfaceName} Mesh", hillVertices, hillTriangles, surfaceMaterial, true);
+		GenerateHillCurbs();
     }
 
-    private void BuildHillProfile(List<MapData> hillDataList)
-    {
-        hasHillProfile = false;
-        hillProfileXValues.Clear();
+	private void GenerateHillCurbs()
+	{
+		if (!hillProfile.IsValid || cadUnitScale <= 0f)
+		{
+			return;
+		}
+		var curbVertices = new List<Vector3>();
+		var curbTriangles = new List<int>();
+		var curbUVs = new List<Vector2>();
+		float width = Mathf.Max(hillCurbWidth, MinimumHillBarrierWidth);
+		float halfCadWidth = width * 0.5f / cadUnitScale;
+		float[] sides = { hillProfile.MinAcross - halfCadWidth, hillProfile.MaxAcross + halfCadWidth };
+		foreach (float lateral in sides)
+		{
+			float textureDistance = 0f;
+			for (int i = 0; i < hillProfile.Stations.Count - 1; i++)
+			{
+				Vector3 start = ToGroundPoint(hillProfile.ToCadPoint(hillProfile.Stations[i], lateral));
+				Vector3 end = ToGroundPoint(hillProfile.ToCadPoint(hillProfile.Stations[i + 1], lateral));
+				start.y = hillProfile.GetStationHeight(i);
+				end.y = hillProfile.GetStationHeight(i + 1);
+				DrawCurbSegment(start, end, width, Mathf.Max(hillBarrierHeight, MinimumHillBarrierHeight), curbVertices, curbTriangles, planeHeight, curbUVs, textureDistance);
+				textureDistance += Vector3.Distance(start, end);
+			}
+		}
+		CreateChildMesh(GeneratedHillCurbsName, $"{GeneratedHillCurbsName} Mesh",
+			curbVertices, curbTriangles, hillCurbMaterial != null ? hillCurbMaterial : curbMaterial, true, curbUVs);
+	}
 
-        if (hillDataList == null || hillDataList.Count < 2)
-        {
-            return;
-        }
+	private void AddHillSideWall(Vector3 start, Vector3 end, bool reverseWinding,
+		List<Vector3> hillVertices, List<int> hillTriangles)
+	{
+		Vector3 bottomStart = start;
+		Vector3 bottomEnd = end;
+		bottomStart.y = planeHeight;
+		bottomEnd.y = planeHeight;
+		int firstVertex = hillVertices.Count;
+		hillVertices.Add(start);
+		hillVertices.Add(end);
+		hillVertices.Add(bottomStart);
+		hillVertices.Add(bottomEnd);
 
-        bool hasBounds = false;
-
-        foreach (var data in hillDataList)
-        {
-            Vector2 start = GetStartPoint(data);
-            Vector2 end = GetEndPoint(data);
-            AddUniqueSortedValue(hillProfileXValues, start.x);
-            AddUniqueSortedValue(hillProfileXValues, end.x);
-
-            if (!hasBounds)
-            {
-                hillProfileMinY = Mathf.Min(start.y, end.y);
-                hillProfileMaxY = Mathf.Max(start.y, end.y);
-                hasBounds = true;
-            }
-            else
-            {
-                hillProfileMinY = Mathf.Min(hillProfileMinY, start.y, end.y);
-                hillProfileMaxY = Mathf.Max(hillProfileMaxY, start.y, end.y);
-            }
-        }
-
-        hillProfileXValues.Sort();
-        hasHillProfile = hasBounds && hillProfileXValues.Count >= 2;
-    }
-
-    private float GetHillProfileHeight(int index, int count)
-    {
-        if (count <= 1)
-        {
-            return 0f;
-        }
-
-        if (count == 2)
-        {
-            return index == 0 ? 0f : hillHeight;
-        }
-
-        if (count == 3)
-        {
-            return index == 1 ? hillHeight : 0f;
-        }
-
-        return index == 0 || index == count - 1 ? 0f : hillHeight;
-    }
+		if (reverseWinding)
+		{
+			hillTriangles.Add(firstVertex);
+			hillTriangles.Add(firstVertex + 2);
+			hillTriangles.Add(firstVertex + 1);
+			hillTriangles.Add(firstVertex + 1);
+			hillTriangles.Add(firstVertex + 2);
+			hillTriangles.Add(firstVertex + 3);
+		}
+		else
+		{
+			hillTriangles.Add(firstVertex);
+			hillTriangles.Add(firstVertex + 1);
+			hillTriangles.Add(firstVertex + 2);
+			hillTriangles.Add(firstVertex + 1);
+			hillTriangles.Add(firstVertex + 3);
+			hillTriangles.Add(firstVertex + 2);
+		}
+	}
 
     private bool TryGetCadBounds(List<MapData> mapDataList, List<MapData> hillDataList, out Vector2 min, out Vector2 max)
     {
@@ -1215,6 +1383,14 @@ public class MapGenerator : MonoBehaviour
 
         AddBoundsFromMapData(mapDataList, ref min, ref max, ref hasPoint);
         AddBoundsFromMapData(hillDataList, ref min, ref max, ref hasPoint);
+		if (hillProfile.IsValid)
+		{
+			foreach (float station in hillProfile.Stations)
+			{
+				Encapsulate(hillProfile.ToCadPoint(station, hillProfile.MinAcross), ref min, ref max, ref hasPoint);
+				Encapsulate(hillProfile.ToCadPoint(station, hillProfile.MaxAcross), ref min, ref max, ref hasPoint);
+			}
+		}
         return hasPoint;
     }
 
@@ -1238,21 +1414,7 @@ public class MapGenerator : MonoBehaviour
         }
     }
 
-    private void AddUniqueSortedValue(List<float> values, float value)
-    {
-        const float tolerance = 0.001f;
-        for (int i = 0; i < values.Count; i++)
-        {
-            if (Mathf.Abs(values[i] - value) <= tolerance)
-            {
-                return;
-            }
-        }
-
-        values.Add(value);
-    }
-
-    private GameObject CreateChildMesh(string childName, string meshName, List<Vector3> meshVertices, List<int> meshTriangles, Material material, bool addCollider)
+    private GameObject CreateChildMesh(string childName, string meshName, List<Vector3> meshVertices, List<int> meshTriangles, Material material, bool addCollider, List<Vector2> meshUVs = null)
     {
         if (meshVertices.Count == 0 || meshTriangles.Count == 0)
         {
@@ -1274,6 +1436,10 @@ public class MapGenerator : MonoBehaviour
         }
 
         childMesh.SetVertices(meshVertices);
+		if (meshUVs != null)
+		{
+			childMesh.SetUVs(0, meshUVs);
+		}
         childMesh.SetTriangles(meshTriangles, 0);
         childMesh.RecalculateNormals();
         childMesh.RecalculateBounds();
@@ -1305,6 +1471,10 @@ public class MapGenerator : MonoBehaviour
         {
             material.color = new Color(0.45f, 0.45f, 0.45f, 1f);
         }
+        else if (materialName == GeneratedHillCurbsName)
+		{
+			material.color = Color.gray;
+		}
         else if (materialName.Contains("Hill"))
         {
             material.color = new Color(0.35f, 0.55f, 0.35f, 1f);
@@ -1367,47 +1537,16 @@ public class MapGenerator : MonoBehaviour
         return end != Vector2.zero ? end : new Vector2(data.PosX + data.DeltaX, data.PosY + data.DeltaY);
     }
 
-    private Vector3 ToWorldPoint(Vector2 cadPoint)
-    {
-        Vector2 scaled = (cadPoint - cadOrigin) * cadUnitScale;
-        return new Vector3(scaled.x, GetGroundHeight(cadPoint) + lineHeightOffset, scaled.y);
-    }
-
     private Vector3 ToGroundPoint(Vector2 cadPoint)
     {
         Vector2 scaled = (cadPoint - cadOrigin) * cadUnitScale;
         return new Vector3(scaled.x, 0f, scaled.y);
     }
 
-    private float GetGroundHeight(Vector2 cadPoint)
-    {
-        if (!hasHillProfile || cadPoint.y < hillProfileMinY || cadPoint.y > hillProfileMaxY)
-        {
-            return 0f;
-        }
-
-        if (cadPoint.x < hillProfileXValues[0] || cadPoint.x > hillProfileXValues[hillProfileXValues.Count - 1])
-        {
-            return 0f;
-        }
-
-        for (int i = 0; i < hillProfileXValues.Count - 1; i++)
-        {
-            float startX = hillProfileXValues[i];
-            float endX = hillProfileXValues[i + 1];
-            if (cadPoint.x < startX || cadPoint.x > endX)
-            {
-                continue;
-            }
-
-            float startHeight = GetHillProfileHeight(i, hillProfileXValues.Count);
-            float endHeight = GetHillProfileHeight(i + 1, hillProfileXValues.Count);
-            float t = Mathf.InverseLerp(startX, endX, cadPoint.x);
-            return Mathf.Lerp(startHeight, endHeight, t);
-        }
-
-        return 0f;
-    }
+	private float GetGroundHeight(Vector2 cadPoint)
+	{
+		return hillProfile.GetHeight(cadPoint);
+	}
 
     private Vector2 GetCadOrigin(List<MapData> mapDataList)
     {

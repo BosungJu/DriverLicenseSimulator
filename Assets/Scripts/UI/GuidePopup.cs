@@ -62,6 +62,7 @@ public class GuidePopup : MonoBehaviour
 		new CommandGuide("t_test", 2, "주차 브레이크를 채웠다가 풀고\n전진하여 차고를 빠져나오세요."),
 		new CommandGuide("t_test", 3, "직각주차 구간을 통과했습니다.\n다음 코스로 진행하세요."),
 		new CommandGuide("fast", "가속 구간입니다.\n시속 20km 이상으로 가속한 뒤 감속하세요."),
+		new CommandGuide("fast", 1, "가속 구간을 통과했습니다.\n속도를 줄여 다음 코스로 진행하세요."),
 		new CommandGuide("on_emergency", "돌발 상황입니다! 2초 안에 정지하고, 정지한 뒤\n3초 안에 비상등을 켰다가 끄고 출발하세요."),
 		new CommandGuide("end", "종료 지점입니다.\n시험 결과를 확인하세요.")
 	};

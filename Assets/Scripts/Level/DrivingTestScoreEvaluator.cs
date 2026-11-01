@@ -25,66 +25,38 @@ public readonly struct DrivingVehicleState
 }
 
 // Applies the course test scoring table to section, speed, line-contact, and vehicle control input.
+// Section-specific rules live in DrivingSectionJudge subclasses created per section;
+// this class keeps the course-wide rules (course time, speed limit, line touch, signal violation, seat belt, engine).
 // Time only advances through Tick, so the rules are deterministic and testable without a scene.
 // Rules that need vehicle controls are skipped while no DrivingVehicleState is supplied.
 public sealed class DrivingTestScoreEvaluator
 {
 	private readonly DrivingScoringSettings settings;
+	private readonly DrivingDeductionRecorder recorder;
+	// Judges of the current section, in the order their rules are applied.
+	private readonly List<DrivingSectionJudge> sectionJudges = new List<DrivingSectionJudge>();
+	// Shared by the T_TEST_n sections of one parking course; null outside it.
+	private ParkingSectionJudge parkingCourseJudge;
 
 	private bool isCourseRunning;
 	private bool hasSection;
-	private int currentPointNumber;
 	private IReadOnlyList<string> currentCommands = Array.Empty<string>();
-	private bool isStartSection;
-	private bool isParkingSection;
+	// Section traits that change course-wide rules.
 	private bool isAccelerationSection;
-	private bool isEmergencySection;
-	private bool isHillStopSection;
 	private bool isSignalSection;
-	private bool isLeftTurnSection;
 	private bool isRightTurnSection;
 
 	private float courseElapsedSeconds;
-	private float sectionElapsedSeconds;
-	private float parkingElapsedSeconds;
 	private float overSpeedElapsedSeconds;
-	private float sectionMaxSpeedKmh;
 	private float lastLineTouchSeconds;
 	private int courseTimeOverCount;
-	private int parkingTimeOverCount;
 	private int overSpeedCount;
-	private bool isEmergencyJudged;
 
-	// Emergency stop follow-up: hazard lights on after stopping, off again when departing.
-	private bool hasEmergencyStopped;
-	private float emergencyStoppedSeconds;
-	private bool isEmergencyHazardJudged;
-	private bool isEmergencyDepartureJudged;
-	private bool isEmergencyHazardEarlyJudged;
-
-	// Hill stop zone state; route distance is measured along the section's route direction.
-	// hasHillStopped marks the first stop (rollback and pass time count from it);
-	// only a continuous stop of the minimum duration fulfils the stop requirement.
-	private bool hasHillStopped;
-	private bool isHillStopHolding;
-	private float hillStopHoldSeconds;
-	private bool hasHillHeldMinimumStop;
-	private float hillStopRouteDistance;
-	private float hillElapsedSinceStopSeconds;
-	private bool isHillRollbackPenalized;
-
-	private float signalStopSeconds;
-	private bool isSignalStopPenalized;
-
-	// Vehicle control state. Section flags only count once a vehicle state was supplied in that section.
+	// Vehicle control state. Section flags only count once a vehicle state was supplied in that section;
+	// the finish judge reads them as the approach section's record.
 	private bool hasSectionVehicleState;
-	private bool hasSectionLeftSignal;
-	private bool hasSectionRightSignal;
-	private bool isStartDepartureJudged;
+	private bool hasSectionTurnSignal;
 	private bool wasEngineOn;
-	// The parking course spans several T_TEST_n sections, so its parking brake check spans them too.
-	private bool hasParkingVehicleState;
-	private bool hasParkingBrakeApplied;
 
 	public DrivingScoreSheet ScoreSheet { get; }
 	public bool IsCourseRunning => isCourseRunning;
@@ -94,6 +66,7 @@ public sealed class DrivingTestScoreEvaluator
 	{
 		this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
 		ScoreSheet = new DrivingScoreSheet(settings.MaxScore, settings.PassingScore);
+		recorder = new DrivingDeductionRecorder(ScoreSheet);
 		Reset();
 	}
 
@@ -102,16 +75,13 @@ public sealed class DrivingTestScoreEvaluator
 		ScoreSheet.Reset();
 		isCourseRunning = false;
 		ClearSection();
+		parkingCourseJudge = null;
 		courseElapsedSeconds = 0f;
-		parkingElapsedSeconds = 0f;
 		overSpeedElapsedSeconds = 0f;
 		lastLineTouchSeconds = float.NegativeInfinity;
 		courseTimeOverCount = 0;
-		parkingTimeOverCount = 0;
 		overSpeedCount = 0;
 		wasEngineOn = false;
-		hasParkingVehicleState = false;
-		hasParkingBrakeApplied = false;
 	}
 
 	// The course starts with the first section, so time before the start point is not scored.
@@ -122,29 +92,23 @@ public sealed class DrivingTestScoreEvaluator
 		// The course completes as soon as the finish point is reached, so the finish signal is judged
 		// on the approach section that is ending now.
 		bool hasApproachVehicleState = hasSection && hasSectionVehicleState;
-		bool hasApproachTurnSignal = hasSectionLeftSignal || hasSectionRightSignal;
+		bool hasApproachTurnSignal = hasSectionTurnSignal;
 
 		if (hasSection)
 		{
-			bool continuesParkingCourse = HasCommand(nextCommands, DrivingScoringSettings.ParkingCommand);
+			bool continuesParkingCourse = HasActiveParkingCommand(nextCommands);
 			EndSection(continuesParkingCourse);
 		}
 
 		isCourseRunning = true;
 		hasSection = true;
-		currentPointNumber = pointNumber;
+		recorder.AssignPointNumber(pointNumber);
 		currentCommands = nextCommands;
-		isStartSection = HasCommand(currentCommands, DrivingScoringSettings.StartCommand);
-		isParkingSection = HasCommand(currentCommands, DrivingScoringSettings.ParkingCommand);
-		isAccelerationSection = HasCommand(currentCommands, DrivingScoringSettings.AccelerationCommand);
-		isEmergencySection = HasCommand(currentCommands, DrivingScoringSettings.EmergencyCommand);
-		isHillStopSection = HasCommandStep(currentCommands, DrivingScoringSettings.HillCommand, settings.HillStopStep);
+		isAccelerationSection = HasCommand(currentCommands, DrivingScoringSettings.AccelerationCommand)
+			&& !HasCommandStep(currentCommands, DrivingScoringSettings.AccelerationCommand, DrivingScoringSettings.AccelerationExitStep);
 		isSignalSection = HasCommand(currentCommands, DrivingScoringSettings.SignalCommand);
-		isLeftTurnSection = HasCommand(currentCommands, DrivingScoringSettings.LeftTurnCommand);
 		isRightTurnSection = HasCommand(currentCommands, DrivingScoringSettings.RightTurnCommand);
-		sectionElapsedSeconds = 0f;
-		sectionMaxSpeedKmh = 0f;
-		isEmergencyJudged = false;
+		AddSectionJudges(hasApproachVehicleState, hasApproachTurnSignal);
 
 		// The speed limit excludes the acceleration section, so an over-speed run does not carry into or out of it.
 		if (isAccelerationSection)
@@ -152,9 +116,9 @@ public sealed class DrivingTestScoreEvaluator
 			ResetOverSpeed();
 		}
 
-		if (HasCommand(currentCommands, DrivingScoringSettings.FinishCommand))
+		for (int i = 0; i < sectionJudges.Count; i++)
 		{
-			JudgeFinishSignal(hasApproachVehicleState, hasApproachTurnSignal);
+			sectionJudges[i].Begin();
 		}
 	}
 
@@ -181,15 +145,14 @@ public sealed class DrivingTestScoreEvaluator
 		}
 
 		courseElapsedSeconds += deltaSeconds;
-		sectionElapsedSeconds += deltaSeconds;
-		sectionMaxSpeedKmh = Math.Max(sectionMaxSpeedKmh, speedKmh);
 
-		JudgeStartTime();
-		JudgeParkingTime(deltaSeconds);
+		// Indexed loops, because a deduction listener may reset the evaluator and clear the judges.
+		for (int i = 0; i < sectionJudges.Count; i++)
+		{
+			sectionJudges[i].Tick(deltaSeconds, speedKmh, routeDistanceMeters, approachSignalState);
+		}
+
 		JudgeOverSpeed(deltaSeconds, speedKmh);
-		JudgeEmergencyStop(speedKmh);
-		JudgeHillStop(deltaSeconds, speedKmh, routeDistanceMeters);
-		JudgeSignal(deltaSeconds, speedKmh, approachSignalState);
 		JudgeCourseTime();
 
 		if (vehicleState.HasValue)
@@ -221,7 +184,7 @@ public sealed class DrivingTestScoreEvaluator
 			? DrivingDeductionReason.ParkingLineTouch
 			: DrivingDeductionReason.LaneKeepingLineTouch;
 
-		Deduct(reason, penalty, matchedCommand.Length > 0 ? matchedCommand : string.Join(" | ", currentCommands));
+		recorder.Deduct(reason, penalty, matchedCommand.Length > 0 ? matchedCommand : string.Join(" | ", currentCommands));
 	}
 
 	// Called when the vehicle front reaches a stop line; doing so on a stop light is a signal violation.
@@ -240,11 +203,12 @@ public sealed class DrivingTestScoreEvaluator
 			return;
 		}
 
-		Disqualify(DrivingDeductionReason.SignalViolation,
+		recorder.Disqualify(DrivingDeductionReason.SignalViolation,
 			isSignalSection ? DrivingScoringSettings.SignalCommand : string.Join(" | ", currentCommands));
 	}
 
-	// Section-end rules run before the section state is cleared, so deductions belong to the ending section.
+	// Judges run their section-end rules before the section state is cleared, so deductions belong to the ending section.
+	// A parking course that continues into the next T_TEST_n section keeps its judge running instead.
 	private void EndSection(bool continuesParkingCourse)
 	{
 		if (!hasSection)
@@ -252,50 +216,75 @@ public sealed class DrivingTestScoreEvaluator
 			return;
 		}
 
-		if (isAccelerationSection && sectionMaxSpeedKmh < settings.AccelerationTargetKmh)
+		for (int i = 0; i < sectionJudges.Count; i++)
 		{
-			Deduct(DrivingDeductionReason.AccelerationTooSlow, settings.AccelerationPenalty,
-				DrivingScoringSettings.AccelerationCommand);
+			DrivingSectionJudge sectionJudge = sectionJudges[i];
+			bool isContinuingParkingJudge = continuesParkingCourse && sectionJudge == parkingCourseJudge;
+			if (!isContinuingParkingJudge)
+			{
+				sectionJudge.End();
+			}
 		}
 
-		if (isHillStopSection && !hasHillHeldMinimumStop)
+		if (!continuesParkingCourse)
 		{
-			Disqualify(DrivingDeductionReason.HillNotStopped, DrivingScoringSettings.HillCommand);
-		}
-
-		JudgeTurnSignal();
-
-		if (isParkingSection && !continuesParkingCourse)
-		{
-			JudgeParkingBrake();
+			parkingCourseJudge = null;
 		}
 
 		ClearSection();
 	}
 
-	private void JudgeStartTime()
+	// The order matches the order the section rules are applied in each tick and at section end.
+	private void AddSectionJudges(bool hasApproachVehicleState, bool hasApproachTurnSignal)
 	{
-		if (isStartSection && sectionElapsedSeconds > settings.StartTimeLimitSeconds)
+		if (HasCommand(currentCommands, DrivingScoringSettings.StartCommand))
 		{
-			Disqualify(DrivingDeductionReason.StartTimeOver, DrivingScoringSettings.StartCommand);
-		}
-	}
-
-	// The parking time limit covers the whole T course, so it accumulates across its T_TEST_n steps.
-	private void JudgeParkingTime(float deltaSeconds)
-	{
-		if (!isParkingSection)
-		{
-			return;
+			sectionJudges.Add(new StartSectionJudge(settings, recorder));
 		}
 
-		parkingElapsedSeconds += deltaSeconds;
-		int expectedCount = (int)(parkingElapsedSeconds / settings.ParkingTimeLimitSeconds);
-		while (parkingTimeOverCount < expectedCount)
+		if (isAccelerationSection)
 		{
-			parkingTimeOverCount++;
-			Deduct(DrivingDeductionReason.ParkingTimeOver, settings.ParkingTimeOverPenalty,
-				DrivingScoringSettings.ParkingCommand);
+			sectionJudges.Add(new AccelerationSectionJudge(settings, recorder));
+		}
+
+		if (HasCommand(currentCommands, DrivingScoringSettings.EmergencyCommand))
+		{
+			sectionJudges.Add(new EmergencySectionJudge(settings, recorder));
+		}
+
+		if (HasCommandStep(currentCommands, DrivingScoringSettings.HillCommand, settings.HillStopStep))
+		{
+			sectionJudges.Add(new HillStopSectionJudge(settings, recorder));
+		}
+
+		if (isSignalSection)
+		{
+			sectionJudges.Add(new SignalSectionJudge(settings, recorder, isRightTurnSection));
+		}
+
+		if (HasCommand(currentCommands, DrivingScoringSettings.LeftTurnCommand))
+		{
+			sectionJudges.Add(new TurnSectionJudge(settings, recorder, true));
+		}
+
+		if (isRightTurnSection)
+		{
+			sectionJudges.Add(new TurnSectionJudge(settings, recorder, false));
+		}
+
+		if (HasActiveParkingCommand(currentCommands))
+		{
+			if (parkingCourseJudge == null)
+			{
+				parkingCourseJudge = new ParkingSectionJudge(settings, recorder);
+			}
+
+			sectionJudges.Add(parkingCourseJudge);
+		}
+
+		if (HasCommand(currentCommands, DrivingScoringSettings.FinishCommand))
+		{
+			sectionJudges.Add(new FinishSectionJudge(settings, recorder, hasApproachVehicleState, hasApproachTurnSignal));
 		}
 	}
 
@@ -313,115 +302,7 @@ public sealed class DrivingTestScoreEvaluator
 		while (overSpeedCount < expectedCount)
 		{
 			overSpeedCount++;
-			Deduct(DrivingDeductionReason.OverSpeed, settings.OverSpeedPenalty, string.Join(" | ", currentCommands));
-		}
-	}
-
-	private void JudgeEmergencyStop(float speedKmh)
-	{
-		if (!isEmergencySection || isEmergencyJudged)
-		{
-			return;
-		}
-
-		if (speedKmh <= settings.StoppedSpeedKmh)
-		{
-			isEmergencyJudged = true;
-			return;
-		}
-
-		if (sectionElapsedSeconds > settings.EmergencyStopTimeLimitSeconds)
-		{
-			isEmergencyJudged = true;
-			Deduct(DrivingDeductionReason.EmergencyStopLate, settings.EmergencyPenalty,
-				DrivingScoringSettings.EmergencyCommand);
-		}
-	}
-
-	// The stop zone requires a stop of the minimum duration, no rollback, and passing it within the time limit after stopping.
-	private void JudgeHillStop(float deltaSeconds, float speedKmh, float routeDistanceMeters)
-	{
-		if (!isHillStopSection)
-		{
-			return;
-		}
-
-		bool isStopped = speedKmh <= settings.StoppedSpeedKmh;
-		if (!hasHillStopped)
-		{
-			if (isStopped)
-			{
-				hasHillStopped = true;
-				isHillStopHolding = true;
-				hillStopRouteDistance = routeDistanceMeters;
-			}
-
-			return;
-		}
-
-		hillElapsedSinceStopSeconds += deltaSeconds;
-
-		// Short stops do not add up; moving again restarts the required stop.
-		// Like the first stop, a new stop counts from its first stopped tick.
-		if (isStopped)
-		{
-			if (isHillStopHolding)
-			{
-				hillStopHoldSeconds += deltaSeconds;
-				hasHillHeldMinimumStop |= hillStopHoldSeconds >= settings.HillMinimumStopSeconds;
-			}
-
-			isHillStopHolding = true;
-		}
-		else
-		{
-			isHillStopHolding = false;
-			hillStopHoldSeconds = 0f;
-		}
-
-		float rollbackMeters = hillStopRouteDistance - routeDistanceMeters;
-		if (rollbackMeters >= settings.HillRollbackDisqualifyMeters)
-		{
-			Disqualify(DrivingDeductionReason.HillRollbackOver, DrivingScoringSettings.HillCommand);
-		}
-		else if (rollbackMeters >= settings.HillRollbackPenaltyMeters && !isHillRollbackPenalized)
-		{
-			isHillRollbackPenalized = true;
-			Deduct(DrivingDeductionReason.HillRollback, settings.HillRollbackPenalty, DrivingScoringSettings.HillCommand);
-		}
-
-		if (hillElapsedSinceStopSeconds > settings.HillPassTimeLimitSeconds)
-		{
-			Disqualify(DrivingDeductionReason.HillPassTimeOver, DrivingScoringSettings.HillCommand);
-		}
-	}
-
-	// Waiting before the stop line for a red or yellow light is required, so it does not count as a long stop.
-	// A right turn does not wait for the light, so its stops always count.
-	// The signal violation itself is judged by RegisterStopLineCrossing.
-	private void JudgeSignal(float deltaSeconds, float speedKmh, TrafficLightState? approachSignalState)
-	{
-		if (!isSignalSection)
-		{
-			return;
-		}
-
-		bool isWaitingForGreen = !isRightTurnSection
-			&& approachSignalState.HasValue
-			&& approachSignalState.Value != TrafficLightState.Green;
-		if (speedKmh <= settings.StoppedSpeedKmh && !isWaitingForGreen)
-		{
-			signalStopSeconds += deltaSeconds;
-			if (signalStopSeconds >= settings.SignalStopLimitSeconds && !isSignalStopPenalized)
-			{
-				isSignalStopPenalized = true;
-				Deduct(DrivingDeductionReason.SignalLongStop, settings.SignalStopPenalty,
-					DrivingScoringSettings.SignalCommand);
-			}
-		}
-		else
-		{
-			signalStopSeconds = 0f;
+			recorder.Deduct(DrivingDeductionReason.OverSpeed, settings.OverSpeedPenalty, string.Join(" | ", currentCommands));
 		}
 	}
 
@@ -437,36 +318,26 @@ public sealed class DrivingTestScoreEvaluator
 		while (courseTimeOverCount < expectedCount)
 		{
 			courseTimeOverCount++;
-			Deduct(DrivingDeductionReason.CourseTimeOver, settings.CourseTimeOverPenalty,
+			recorder.Deduct(DrivingDeductionReason.CourseTimeOver, settings.CourseTimeOverPenalty,
 				string.Join(" | ", currentCommands));
 		}
 	}
 
-	// Seat belt, engine, turn signal, hazard light and parking brake rules read the driver's controls.
+	// Seat belt and engine rules apply to the whole course; section judges read the controls afterwards.
 	private void JudgeVehicleControls(float deltaSeconds, float speedKmh, DrivingVehicleState vehicleState)
 	{
-		RecordControlState(speedKmh, vehicleState);
+		hasSectionVehicleState = true;
+		hasSectionTurnSignal |= vehicleState.IsTurnSignalOn;
 
 		// Movement with the engine off (e.g. settling after the spawn drop) is not the driver departing.
 		bool isDriving = vehicleState.IsEngineOn && speedKmh > settings.StoppedSpeedKmh;
 
 		JudgeSeatBelt(isDriving, vehicleState);
 		JudgeEngineStall(vehicleState);
-		JudgeStartSignal(isDriving, vehicleState);
-		JudgeEmergencyHazard(deltaSeconds, speedKmh, vehicleState);
-	}
 
-	private void RecordControlState(float speedKmh, DrivingVehicleState vehicleState)
-	{
-		hasSectionVehicleState = true;
-		hasSectionLeftSignal |= vehicleState.IsLeftSignalOn;
-		hasSectionRightSignal |= vehicleState.IsRightSignalOn;
-
-		// The brake only counts as parking when applied while stopped, not toggled while driving through.
-		if (isParkingSection)
+		for (int i = 0; i < sectionJudges.Count; i++)
 		{
-			hasParkingVehicleState = true;
-			hasParkingBrakeApplied |= vehicleState.IsParkingBrakeOn && speedKmh <= settings.StoppedSpeedKmh;
+			sectionJudges[i].TickVehicleControls(deltaSeconds, speedKmh, vehicleState);
 		}
 	}
 
@@ -476,7 +347,7 @@ public sealed class DrivingTestScoreEvaluator
 	{
 		if (isDriving && !vehicleState.IsSeatBeltOn)
 		{
-			Disqualify(DrivingDeductionReason.SeatBeltNotWorn, string.Join(" | ", currentCommands));
+			recorder.Disqualify(DrivingDeductionReason.SeatBeltNotWorn, string.Join(" | ", currentCommands));
 		}
 	}
 
@@ -488,144 +359,8 @@ public sealed class DrivingTestScoreEvaluator
 
 		if (isStalled)
 		{
-			Deduct(DrivingDeductionReason.EngineStalled, settings.EngineStallPenalty, string.Join(" | ", currentCommands));
+			recorder.Deduct(DrivingDeductionReason.EngineStalled, settings.EngineStallPenalty, string.Join(" | ", currentCommands));
 		}
-	}
-
-	// Departure is the first movement in the start section; a turn signal must be on at that moment.
-	private void JudgeStartSignal(bool isDriving, DrivingVehicleState vehicleState)
-	{
-		if (!isStartSection || isStartDepartureJudged || !isDriving)
-		{
-			return;
-		}
-
-		isStartDepartureJudged = true;
-		if (!vehicleState.IsTurnSignalOn)
-		{
-			Deduct(DrivingDeductionReason.StartSignalMissing, settings.StartFinishSignalPenalty,
-				DrivingScoringSettings.StartCommand);
-		}
-	}
-
-	// The hazard lights belong after the emergency stop: not while still moving, on in time once stopped,
-	// and off again when the vehicle departs.
-	private void JudgeEmergencyHazard(float deltaSeconds, float speedKmh, DrivingVehicleState vehicleState)
-	{
-		if (!isEmergencySection)
-		{
-			return;
-		}
-
-		bool isStopped = speedKmh <= settings.StoppedSpeedKmh;
-		float secondsSinceStop = deltaSeconds;
-		if (!hasEmergencyStopped)
-		{
-			if (!isStopped)
-			{
-				JudgeEmergencyHazardEarly(vehicleState);
-				return;
-			}
-
-			// Time counts from the stop, so hazard lights already on at the stopping tick are in time.
-			hasEmergencyStopped = true;
-			secondsSinceStop = 0f;
-		}
-
-		// The deadline is checked before accepting the hazard lights, so turning them on after it still counts as late.
-		if (!isEmergencyHazardJudged)
-		{
-			emergencyStoppedSeconds += secondsSinceStop;
-			bool isPastDeadline = emergencyStoppedSeconds > settings.EmergencyHazardTimeLimitSeconds;
-			bool isHazardLate = isPastDeadline || (!isStopped && !vehicleState.IsHazardOn);
-			if (isHazardLate)
-			{
-				isEmergencyHazardJudged = true;
-				Deduct(DrivingDeductionReason.EmergencyHazardLate, settings.EmergencyPenalty,
-					DrivingScoringSettings.EmergencyCommand);
-			}
-			else if (vehicleState.IsHazardOn)
-			{
-				isEmergencyHazardJudged = true;
-			}
-		}
-
-		if (!isEmergencyDepartureJudged && !isStopped)
-		{
-			isEmergencyDepartureJudged = true;
-			if (vehicleState.IsHazardOn)
-			{
-				Deduct(DrivingDeductionReason.EmergencyHazardNotOff, settings.EmergencyPenalty,
-					DrivingScoringSettings.EmergencyCommand);
-			}
-		}
-	}
-
-	// Test machines deduct hazard lights switched on before the stop is complete.
-	private void JudgeEmergencyHazardEarly(DrivingVehicleState vehicleState)
-	{
-		if (isEmergencyHazardEarlyJudged || !vehicleState.IsHazardOn)
-		{
-			return;
-		}
-
-		isEmergencyHazardEarlyJudged = true;
-		Deduct(DrivingDeductionReason.EmergencyHazardEarly, settings.EmergencyPenalty,
-			DrivingScoringSettings.EmergencyCommand);
-	}
-
-	// A left/right section needs its matching turn signal at some point while driving through it.
-	private void JudgeTurnSignal()
-	{
-		if (!hasSectionVehicleState)
-		{
-			return;
-		}
-
-		if (isLeftTurnSection && !hasSectionLeftSignal)
-		{
-			Deduct(DrivingDeductionReason.TurnSignalMissing, settings.TurnSignalPenalty,
-				DrivingScoringSettings.LeftTurnCommand);
-		}
-
-		if (isRightTurnSection && !hasSectionRightSignal)
-		{
-			Deduct(DrivingDeductionReason.TurnSignalMissing, settings.TurnSignalPenalty,
-				DrivingScoringSettings.RightTurnCommand);
-		}
-	}
-
-	private void JudgeParkingBrake()
-	{
-		bool isParkingBrakeMissing = hasParkingVehicleState && !hasParkingBrakeApplied;
-		hasParkingVehicleState = false;
-		hasParkingBrakeApplied = false;
-
-		if (isParkingBrakeMissing)
-		{
-			Deduct(DrivingDeductionReason.ParkingBrakeNotApplied, settings.ParkingBrakePenalty,
-				DrivingScoringSettings.ParkingCommand);
-		}
-	}
-
-	// Arriving at the finish needs a turn signal at some point while driving the approach section.
-	private void JudgeFinishSignal(bool hasApproachVehicleState, bool hasApproachTurnSignal)
-	{
-		if (hasApproachVehicleState && !hasApproachTurnSignal)
-		{
-			Deduct(DrivingDeductionReason.FinishSignalMissing, settings.StartFinishSignalPenalty,
-				DrivingScoringSettings.FinishCommand);
-		}
-	}
-
-	private void Deduct(DrivingDeductionReason reason, int points, string command)
-	{
-		ScoreSheet.ApplyDeduction(new DrivingDeduction(currentPointNumber, command, reason, points));
-	}
-
-	private void Disqualify(DrivingDeductionReason reason, string command)
-	{
-		ScoreSheet.ApplyDeduction(new DrivingDeduction(currentPointNumber, command, reason, 0, true));
 	}
 
 	private void ResetOverSpeed()
@@ -637,37 +372,21 @@ public sealed class DrivingTestScoreEvaluator
 	private void ClearSection()
 	{
 		hasSection = false;
-		currentPointNumber = DrivingTestLevel.NoCurrentPoint;
+		recorder.AssignPointNumber(DrivingTestLevel.NoCurrentPoint);
 		currentCommands = Array.Empty<string>();
-		isStartSection = false;
-		isParkingSection = false;
 		isAccelerationSection = false;
-		isEmergencySection = false;
-		isHillStopSection = false;
 		isSignalSection = false;
-		isLeftTurnSection = false;
 		isRightTurnSection = false;
-		sectionElapsedSeconds = 0f;
-		sectionMaxSpeedKmh = 0f;
-		isEmergencyJudged = false;
-		hasEmergencyStopped = false;
-		emergencyStoppedSeconds = 0f;
-		isEmergencyHazardJudged = false;
-		isEmergencyDepartureJudged = false;
-		isEmergencyHazardEarlyJudged = false;
-		hasHillStopped = false;
-		isHillStopHolding = false;
-		hillStopHoldSeconds = 0f;
-		hasHillHeldMinimumStop = false;
-		hillStopRouteDistance = 0f;
-		hillElapsedSinceStopSeconds = 0f;
-		isHillRollbackPenalized = false;
-		signalStopSeconds = 0f;
-		isSignalStopPenalized = false;
+		sectionJudges.Clear();
 		hasSectionVehicleState = false;
-		hasSectionLeftSignal = false;
-		hasSectionRightSignal = false;
-		isStartDepartureJudged = false;
+		hasSectionTurnSignal = false;
+	}
+
+	// The terminal marker closes judging at entry; other commands on that point remain active.
+	private static bool HasActiveParkingCommand(IReadOnlyList<string> commands)
+	{
+		return HasCommand(commands, DrivingScoringSettings.ParkingCommand)
+			&& !HasCommandStep(commands, DrivingScoringSettings.ParkingCommand, DrivingScoringSettings.ParkingExitStep);
 	}
 
 	private static bool HasCommand(IReadOnlyList<string> commands, string commandName)
