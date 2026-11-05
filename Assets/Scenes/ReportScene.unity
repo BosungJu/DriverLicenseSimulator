@@ -2208,6 +2208,18 @@ PrefabInstance:
       propertyPath: m_text
       value: "\uBA54\uC778\uC73C\uB85C"
       objectReference: {fileID: 0}
+    - target: {fileID: 7108865527191213439, guid: 8efa1da9d3d581149acda157d7c551d6, type: 3}
+      propertyPath: m_Colors.m_SelectedColor.b
+      value: 0.6784314
+      objectReference: {fileID: 0}
+    - target: {fileID: 7108865527191213439, guid: 8efa1da9d3d581149acda157d7c551d6, type: 3}
+      propertyPath: m_Colors.m_SelectedColor.g
+      value: 0.6117647
+      objectReference: {fileID: 0}
+    - target: {fileID: 7108865527191213439, guid: 8efa1da9d3d581149acda157d7c551d6, type: 3}
+      propertyPath: m_Colors.m_SelectedColor.r
+      value: 0.54901963
+      objectReference: {fileID: 0}
     - target: {fileID: 7250192281313234603, guid: 8efa1da9d3d581149acda157d7c551d6, type: 3}
       propertyPath: m_Name
       value: HomeButton

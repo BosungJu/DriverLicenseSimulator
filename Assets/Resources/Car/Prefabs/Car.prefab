@@ -91,10 +91,19 @@ MonoBehaviour:
   accelRate: 1200
   releaseRate: 2500
   maxSpeedKmh: 110
+  throttleDeadZone: 0.01
+  minimumDriveTorqueRatio: 0.1
+  throttleSpeedFadeKmh: 2
+  fullBrakeVelocityDamping: 0.98
   maxSteerAngle: 60
   minSteerAngle: 6
   steerSpeed: 80
   fullSteerSpeedThreshold: 22
+  gearShiftInputThreshold: 0.5
+  gearShiftMaxSpeedMetersPerSecond: 0.05
+  automaticShiftDurationSeconds: 0.35
+  maxReverseSpeedKmh: 20
+  centerOfMassOffset: {x: 0, y: -0.7, z: 0}
   systems: {fileID: 2806385371440590671}
   excelAction: {fileID: 6879190352543350516, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   brakeAction: {fileID: -6609865747931013289, guid: 052faaac586de48259a63d0c4782560b, type: 3}
@@ -368,23 +377,31 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6593849231920558028, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.9507
+      value: 1.0244
       objectReference: {fileID: 0}
     - target: {fileID: 6593849231920558028, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.2808
+      value: 0.2722
       objectReference: {fileID: 0}
     - target: {fileID: 6637530235912819476, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.9848078
+      value: 0.9961947
       objectReference: {fileID: 0}
     - target: {fileID: 6637530235912819476, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0.17364816
+      value: 0.08715578
+      objectReference: {fileID: 0}
+    - target: {fileID: 6637530235912819476, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 6965775639642081555, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 1.263
       objectReference: {fileID: 0}
     - target: {fileID: 6965775639642081555, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -0.2
+      value: -0.112
       objectReference: {fileID: 0}
     - target: {fileID: 7743524472138469506, guid: cd21aad59d74622499adc994d84b1dee, type: 3}
       propertyPath: carController
