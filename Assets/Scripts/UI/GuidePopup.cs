@@ -69,8 +69,27 @@ public class GuidePopup : MonoBehaviour
 	[Tooltip("다음 지점이 종료 지점(end)일 때 그 구간 안내 아래에 덧붙인다. 종료 방향지시등은 이 구간에서 채점된다.")]
 	[SerializeField] private string finishApproachMessage = "곧 종료 지점입니다. 방향지시등을 켜고 도착하세요.";
 
+	// 출발 구간은 지점 안에서 지시가 차례로 바뀌므로 DrivingTestScorer의 출발 지시를 따라 띄운다.
+	// 첫 지시가 출발 지점 진입과 같은 프레임에 와서 start 안내를 덮으므로 안전띠 문구에 시작 안내를 함께 둔다.
+	// 문구는 DrivingScoringSettings 기기조작 기본값(지시당 5초)에 맞춘다.
+	[Header("Start Instructions")]
+	[Tooltip("비워 두면 DrivingTestLevel과 같은 오브젝트에서 찾는다. 없으면 출발 지시 안내를 띄우지 않는다.")]
+	[SerializeField] private DrivingTestScorer drivingTestScorer;
+	[TextArea]
+	[SerializeField] private string seatBeltGuideMessage = "기능시험을 시작합니다.\n5초 안에 안전띠를 매세요.";
+	[TextArea]
+	[SerializeField] private string engineGuideMessage = "5초 안에 시동을 거세요.";
+	[TextArea]
+	[SerializeField] private string headlightGuideMessage = "5초 안에 전조등을 켜세요.";
+	[TextArea]
+	[SerializeField] private string wiperGuideMessage = "5초 안에 와이퍼를 작동하세요.";
+	[TextArea]
+	[SerializeField] private string departGuideMessage = "좌측 방향지시등을 켜고 출발하세요.";
+
 	private MapGenerator mapGenerator;
 	private Coroutine hideCoroutine;
+	// 출발 지시 안내는 다음 지시가 올 때까지 남겨 두고, 출발하면 그 안내만 닫는다.
+	private bool isShowingStartInstruction;
 
 	private void Awake()
 	{
@@ -108,6 +127,23 @@ public class GuidePopup : MonoBehaviour
 
 		drivingTestLevel.OnInstructionStarted.AddListener(HandleInstructionStarted);
 		drivingTestLevel.LevelReset += HideGuide;
+
+		// DrivingTestScorer requires DrivingTestLevel, so the scorer sits on the same object
+		if (drivingTestScorer == null)
+		{
+			drivingTestLevel.TryGetComponent(out drivingTestScorer);
+		}
+
+		if (drivingTestScorer != null)
+		{
+			drivingTestScorer.StartInstructionChanged += HandleStartInstructionChanged;
+			// 꺼졌다 켜진 동안 지난 지시는 이벤트로 다시 오지 않으므로 현재 지시를 바로 띄운다
+			HandleStartInstructionChanged(drivingTestScorer.CurrentStartInstruction);
+		}
+		else
+		{
+			Debug.LogWarning("[GuidePopup] DrivingTestScorer를 찾지 못해 출발 기기조작 안내를 띄우지 않습니다.", this);
+		}
 	}
 
 	private void OnDisable()
@@ -118,10 +154,33 @@ public class GuidePopup : MonoBehaviour
 			drivingTestLevel.LevelReset -= HideGuide;
 		}
 
+		if (drivingTestScorer != null)
+		{
+			drivingTestScorer.StartInstructionChanged -= HandleStartInstructionChanged;
+		}
+
 		HideGuide();
 	}
 
 	public void ShowGuide(string message)
+	{
+		ShowGuide(message, displaySeconds);
+		isShowingStartInstruction = false;
+	}
+
+	public void HideGuide()
+	{
+		StopHideCoroutine();
+		isShowingStartInstruction = false;
+
+		if (popupPanel != null)
+		{
+			popupPanel.SetActive(false);
+		}
+	}
+
+	// visibleSeconds가 0 이하면 다음 안내가 올 때까지 계속 보인다.
+	private void ShowGuide(string message, float visibleSeconds)
 	{
 		if (popupPanel == null || guideText == null)
 		{
@@ -133,24 +192,63 @@ public class GuidePopup : MonoBehaviour
 		guideText.text = message;
 		popupPanel.SetActive(true);
 
-		if (displaySeconds > 0f)
+		if (visibleSeconds > 0f)
 		{
-			hideCoroutine = StartCoroutine(HideAfterDelay(displaySeconds));
+			hideCoroutine = StartCoroutine(HideAfterDelay(visibleSeconds));
 		}
 	}
 
-	public void HideGuide()
+	private void HandleStartInstructionChanged(DrivingStartInstruction instruction)
 	{
-		StopHideCoroutine();
-
-		if (popupPanel != null)
+		string message = GetStartInstructionMessage(instruction);
+		if (string.IsNullOrEmpty(message))
 		{
-			popupPanel.SetActive(false);
+			// 출발했거나 출발 구간이 끝났으면 다른 구간 안내는 두고 출발 지시만 닫는다
+			if (isShowingStartInstruction)
+			{
+				HideGuide();
+			}
+
+			return;
+		}
+
+		ShowGuide(message, 0f);
+		isShowingStartInstruction = true;
+	}
+
+	private static bool IsStartCommand(string command)
+	{
+		DrivingSectionAction.SplitStep(command, out string commandName, out _);
+		return string.Equals(commandName, DrivingScoringSettings.StartCommand, System.StringComparison.OrdinalIgnoreCase);
+	}
+
+	private string GetStartInstructionMessage(DrivingStartInstruction instruction)
+	{
+		switch (instruction)
+		{
+			case DrivingStartInstruction.SeatBelt:
+				return seatBeltGuideMessage;
+			case DrivingStartInstruction.Engine:
+				return engineGuideMessage;
+			case DrivingStartInstruction.Headlight:
+				return headlightGuideMessage;
+			case DrivingStartInstruction.Wiper:
+				return wiperGuideMessage;
+			case DrivingStartInstruction.Depart:
+				return departGuideMessage;
+			default:
+				return string.Empty;
 		}
 	}
 
 	private void HandleInstructionStarted(int pointNumber, string command)
 	{
+		// 출발 지점 진입 이벤트는 리스너 순서에 따라 출발 지시보다 늦게 올 수 있다. 출발 지시를 덮지 않는다.
+		if (isShowingStartInstruction && IsStartCommand(command))
+		{
+			return;
+		}
+
 		if (!TryGetGuideMessage(command, out string message))
 		{
 			return;

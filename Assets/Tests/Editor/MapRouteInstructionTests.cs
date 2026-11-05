@@ -67,7 +67,7 @@ public class MapRouteInstructionTests
 		string[] expected = { "start", "hill_0", "hill_1", "hill_2 | left", "left", "signal", "right",
 			"T_Test_0", "T_Test_1", "T_Test_2", "T_Test_3 | left", "signal", "left", "fast_0", "fast_1", "end" };
 		var evaluator = new DrivingTestScoreEvaluator(new DrivingScoringSettings());
-		var drivingControls = new DrivingVehicleState(true, true, false, true, true, false);
+		var drivingControls = new DrivingVehicleState(true, true, false, true, true, false, true, true);
 		var parkingControls = new DrivingVehicleState(true, true, false, false, false, true);
 
 		for (int i = 0; i < instructions.Count; i++)
@@ -75,7 +75,14 @@ public class MapRouteInstructionTests
 			Assert.That(instructions[i].PointNumber, Is.EqualTo(i));
 			Assert.That(instructions[i].Text, Is.EqualTo(expected[i]));
 			evaluator.BeginSection(i, instructions[i].Commands);
-			if (i == 2)
+			if (i == 0)
+			{
+				// The start instructs the headlight and then the wiper, one per tick, before departing.
+				evaluator.Tick(0.1f, 0f, vehicleState: drivingControls);
+				evaluator.Tick(0.1f, 0f, vehicleState: drivingControls);
+				evaluator.Tick(1f, 10f, vehicleState: drivingControls);
+			}
+			else if (i == 2)
 			{
 				evaluator.Tick(0.1f, 0f);
 				evaluator.Tick(3f, 0f);
@@ -84,9 +91,16 @@ public class MapRouteInstructionTests
 			{
 				evaluator.Tick(1f, 0f, vehicleState: parkingControls);
 			}
+			else if (i == 13)
+			{
+				// Enter and leave the acceleration section below 20 km/h, reaching the target inside it.
+				evaluator.Tick(1f, 10f, vehicleState: drivingControls);
+				evaluator.Tick(1f, 20f, vehicleState: drivingControls);
+				evaluator.Tick(1f, 10f, vehicleState: drivingControls);
+			}
 			else
 			{
-				evaluator.Tick(1f, i == 13 ? 20f : 10f, vehicleState: drivingControls);
+				evaluator.Tick(1f, 10f, vehicleState: drivingControls);
 			}
 		}
 

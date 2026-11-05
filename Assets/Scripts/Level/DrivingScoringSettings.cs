@@ -38,6 +38,12 @@ public class DrivingScoringSettings
 	[Tooltip("Disqualified when the start line is not passed within this time.")]
 	[SerializeField] private float startTimeLimitSeconds = 30f;
 
+	[Header("기기조작")]
+	[Tooltip("The seat belt, engine, headlight, and then wiper are instructed one at a time in the start section; each must be operated within this time.")]
+	[SerializeField] private float deviceOperationTimeLimitSeconds = 5f;
+	[Tooltip("Deducted for each device not operated in time, or not operated before departing.")]
+	[SerializeField] private int deviceOperationPenalty = 5;
+
 	[Header("경사로 정지·출발")]
 	[Tooltip("hill_n step whose section is the stop zone.")]
 	[SerializeField] private int hillStopStep = 1;
@@ -66,6 +72,12 @@ public class DrivingScoringSettings
 	[Header("속도가속 구간")]
 	[SerializeField] private float accelerationTargetKmh = 20f;
 	[SerializeField] private int accelerationPenalty = 10;
+	[Tooltip("Entering the section at or above this speed is deducted. Project rule, not in the scoring table.")]
+	[SerializeField] private float accelerationEntrySpeedLimitKmh = 20f;
+	[SerializeField] private int accelerationEntrySpeedPenalty = 10;
+	[Tooltip("Leaving the section at or above this speed is deducted. Project rule, not in the scoring table.")]
+	[SerializeField] private float accelerationExitSpeedLimitKmh = 20f;
+	[SerializeField] private int accelerationExitSpeedPenalty = 10;
 
 	[Header("지정속도 유지")]
 	[SerializeField] private float speedLimitKmh = 20f;
@@ -86,7 +98,7 @@ public class DrivingScoringSettings
 	[SerializeField] private int turnSignalPenalty = 5;
 
 	[Header("방향지시등 작동")]
-	[Tooltip("Deducted when no turn signal is on before departing from the start, or while approaching the finish.")]
+	[Tooltip("Deducted when the left turn signal is not on when departing from the start, or no turn signal is on while approaching the finish.")]
 	[SerializeField] private int startFinishSignalPenalty = 5;
 
 	[Header("시동상태 유지")]
@@ -105,6 +117,8 @@ public class DrivingScoringSettings
 	public IReadOnlyList<DrivingLinePenaltyRule> LineTouchRules => lineTouchRules;
 	public float LineTouchCooldownSeconds => lineTouchCooldownSeconds;
 	public float StartTimeLimitSeconds => startTimeLimitSeconds;
+	public float DeviceOperationTimeLimitSeconds => deviceOperationTimeLimitSeconds;
+	public int DeviceOperationPenalty => deviceOperationPenalty;
 	public int HillStopStep => hillStopStep;
 	public float HillMinimumStopSeconds => hillMinimumStopSeconds;
 	public float HillRollbackPenaltyMeters => hillRollbackPenaltyMeters;
@@ -119,6 +133,10 @@ public class DrivingScoringSettings
 	public int ParkingBrakePenalty => parkingBrakePenalty;
 	public float AccelerationTargetKmh => accelerationTargetKmh;
 	public int AccelerationPenalty => accelerationPenalty;
+	public float AccelerationEntrySpeedLimitKmh => accelerationEntrySpeedLimitKmh;
+	public int AccelerationEntrySpeedPenalty => accelerationEntrySpeedPenalty;
+	public float AccelerationExitSpeedLimitKmh => accelerationExitSpeedLimitKmh;
+	public int AccelerationExitSpeedPenalty => accelerationExitSpeedPenalty;
 	public float SpeedLimitKmh => speedLimitKmh;
 	public float OverSpeedIntervalSeconds => overSpeedIntervalSeconds;
 	public int OverSpeedPenalty => overSpeedPenalty;

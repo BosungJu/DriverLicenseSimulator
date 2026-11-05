@@ -35,6 +35,17 @@ public abstract class DrivingSectionJudge
 	{
 	}
 
+	// Speed sampled when the vehicle crossed into the section; runs right after Begin.
+	// Only called when the caller could sample it at the crossing, so judges must also work without it.
+	public virtual void ObserveEntrySpeed(float speedKmh)
+	{
+	}
+
+	// Speed sampled when the vehicle crossed out of the section; runs right before End, under the same condition.
+	public virtual void ObserveExitSpeed(float speedKmh)
+	{
+	}
+
 	protected bool IsStopped(float speedKmh)
 	{
 		return speedKmh <= Settings.StoppedSpeedKmh;
