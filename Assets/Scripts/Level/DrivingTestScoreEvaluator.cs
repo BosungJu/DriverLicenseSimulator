@@ -10,10 +10,13 @@ public readonly struct DrivingVehicleState
 	public bool IsLeftSignalOn { get; }
 	public bool IsRightSignalOn { get; }
 	public bool IsParkingBrakeOn { get; }
+	// Low or high beam.
+	public bool IsHeadlightOn { get; }
+	public bool IsWiperOn { get; }
 	public bool IsTurnSignalOn => IsLeftSignalOn || IsRightSignalOn;
 
 	public DrivingVehicleState(bool isSeatBeltOn, bool isEngineOn, bool isHazardOn, bool isLeftSignalOn,
-		bool isRightSignalOn, bool isParkingBrakeOn)
+		bool isRightSignalOn, bool isParkingBrakeOn, bool isHeadlightOn = false, bool isWiperOn = false)
 	{
 		IsSeatBeltOn = isSeatBeltOn;
 		IsEngineOn = isEngineOn;
@@ -21,6 +24,8 @@ public readonly struct DrivingVehicleState
 		IsLeftSignalOn = isLeftSignalOn;
 		IsRightSignalOn = isRightSignalOn;
 		IsParkingBrakeOn = isParkingBrakeOn;
+		IsHeadlightOn = isHeadlightOn;
+		IsWiperOn = isWiperOn;
 	}
 }
 
@@ -37,6 +42,8 @@ public sealed class DrivingTestScoreEvaluator
 	private readonly List<DrivingSectionJudge> sectionJudges = new List<DrivingSectionJudge>();
 	// Shared by the T_TEST_n sections of one parking course; null outside it.
 	private ParkingSectionJudge parkingCourseJudge;
+	// Judge of the current start section, kept so its instruction can be shown; null outside it.
+	private StartSectionJudge startJudge;
 
 	private bool isCourseRunning;
 	private bool hasSection;
@@ -61,6 +68,8 @@ public sealed class DrivingTestScoreEvaluator
 	public DrivingScoreSheet ScoreSheet { get; }
 	public bool IsCourseRunning => isCourseRunning;
 	public float CourseElapsedSeconds => courseElapsedSeconds;
+	public DrivingStartInstruction CurrentStartInstruction =>
+		startJudge != null ? startJudge.CurrentInstruction : DrivingStartInstruction.None;
 
 	public DrivingTestScoreEvaluator(DrivingScoringSettings settings)
 	{
@@ -85,7 +94,9 @@ public sealed class DrivingTestScoreEvaluator
 	}
 
 	// The course starts with the first section, so time before the start point is not scored.
-	public void BeginSection(int pointNumber, IReadOnlyList<string> commands)
+	// crossingSpeedKmh is the vehicle speed when it crossed into this point, or null when it could not be sampled;
+	// it is the exit speed of the ending section and the entry speed of the new one.
+	public void BeginSection(int pointNumber, IReadOnlyList<string> commands, float? crossingSpeedKmh = null)
 	{
 		IReadOnlyList<string> nextCommands = commands ?? Array.Empty<string>();
 
@@ -97,7 +108,7 @@ public sealed class DrivingTestScoreEvaluator
 		if (hasSection)
 		{
 			bool continuesParkingCourse = HasActiveParkingCommand(nextCommands);
-			EndSection(continuesParkingCourse);
+			EndSection(continuesParkingCourse, crossingSpeedKmh);
 		}
 
 		isCourseRunning = true;
@@ -116,15 +127,24 @@ public sealed class DrivingTestScoreEvaluator
 			ResetOverSpeed();
 		}
 
+		// Indexed loops, because a deduction listener may reset the evaluator and clear the judges.
 		for (int i = 0; i < sectionJudges.Count; i++)
 		{
 			sectionJudges[i].Begin();
+		}
+
+		if (crossingSpeedKmh.HasValue)
+		{
+			for (int i = 0; i < sectionJudges.Count; i++)
+			{
+				sectionJudges[i].ObserveEntrySpeed(crossingSpeedKmh.Value);
+			}
 		}
 	}
 
 	public void EndSection()
 	{
-		EndSection(false);
+		EndSection(false, null);
 	}
 
 	public void CompleteCourse()
@@ -209,7 +229,7 @@ public sealed class DrivingTestScoreEvaluator
 
 	// Judges run their section-end rules before the section state is cleared, so deductions belong to the ending section.
 	// A parking course that continues into the next T_TEST_n section keeps its judge running instead.
-	private void EndSection(bool continuesParkingCourse)
+	private void EndSection(bool continuesParkingCourse, float? exitSpeedKmh)
 	{
 		if (!hasSection)
 		{
@@ -220,10 +240,17 @@ public sealed class DrivingTestScoreEvaluator
 		{
 			DrivingSectionJudge sectionJudge = sectionJudges[i];
 			bool isContinuingParkingJudge = continuesParkingCourse && sectionJudge == parkingCourseJudge;
-			if (!isContinuingParkingJudge)
+			if (isContinuingParkingJudge)
 			{
-				sectionJudge.End();
+				continue;
 			}
+
+			if (exitSpeedKmh.HasValue)
+			{
+				sectionJudge.ObserveExitSpeed(exitSpeedKmh.Value);
+			}
+
+			sectionJudge.End();
 		}
 
 		if (!continuesParkingCourse)
@@ -239,7 +266,8 @@ public sealed class DrivingTestScoreEvaluator
 	{
 		if (HasCommand(currentCommands, DrivingScoringSettings.StartCommand))
 		{
-			sectionJudges.Add(new StartSectionJudge(settings, recorder));
+			startJudge = new StartSectionJudge(settings, recorder);
+			sectionJudges.Add(startJudge);
 		}
 
 		if (isAccelerationSection)
@@ -378,6 +406,7 @@ public sealed class DrivingTestScoreEvaluator
 		isSignalSection = false;
 		isRightTurnSection = false;
 		sectionJudges.Clear();
+		startJudge = null;
 		hasSectionVehicleState = false;
 		hasSectionTurnSignal = false;
 	}

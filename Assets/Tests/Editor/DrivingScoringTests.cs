@@ -7,6 +7,8 @@ public class DrivingScoringTests
 	private const int LaneKeepingPenalty = 15;
 	private const int ParkingLinePenalty = 10;
 	private const float StoppedKmh = 0f;
+	// Below the acceleration section entry/exit limit, so tests of other acceleration rules are not deducted at the boundary.
+	private const float AccelerationBoundaryKmh = 10f;
 
 	private DrivingTestScoreEvaluator evaluator;
 
@@ -130,7 +132,9 @@ public class DrivingScoringTests
 	public void BeginSection_AccelerationExit_JudgesOnlyRunBeforeExit(float speedKmh, int expectedPenalty)
 	{
 		Begin(13, "fast_0");
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
 		evaluator.Tick(1f, speedKmh);
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
 
 		Begin(14, "fast_1");
 		evaluator.Tick(1f, 5f);
@@ -145,7 +149,9 @@ public class DrivingScoringTests
 	public void Tick_AfterAccelerationExit_EnforcesNormalSpeedLimit(float seconds, int expectedPenalty)
 	{
 		Begin(13, "fast_0");
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
 		evaluator.Tick(1f, 21f);
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
 		Begin(14, "fast_1");
 
 		evaluator.Tick(seconds, 21f);
@@ -209,11 +215,130 @@ public class DrivingScoringTests
 	public void EndSection_AccelerationSection_DeductsWhenBelow20Kmh(float maxSpeedKmh, int expectedDeduction)
 	{
 		Begin(8, "fast");
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
 		evaluator.Tick(1f, maxSpeedKmh);
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
 
 		evaluator.EndSection();
 
 		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+	}
+
+	[TestCase(19.9f, 0)]
+	[TestCase(20f, 10)]
+	[TestCase(30f, 10)]
+	public void Tick_AccelerationSectionEntry_DeductsAtOrAbove20Kmh(float entrySpeedKmh, int expectedDeduction)
+	{
+		Begin(8, "fast_0");
+
+		evaluator.Tick(1f, entrySpeedKmh);
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+		if (expectedDeduction > 0)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.AccelerationEntryTooFast));
+			Assert.That(ScoreSheet.Deductions[0].PointNumber, Is.EqualTo(8));
+		}
+	}
+
+	[Test]
+	public void Tick_AccelerationSectionAfterSlowEntry_DoesNotJudgeEntryAgain()
+	{
+		Begin(8, "fast_0");
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
+
+		evaluator.Tick(1f, 25f);
+		evaluator.Tick(1f, 25f);
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
+		Begin(9, "fast_1");
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[Test]
+	public void Tick_AccelerationSectionFastEntry_DeductsOnceAndNotTooSlow()
+	{
+		Begin(8, "fast_0");
+
+		evaluator.Tick(1f, 25f);
+		evaluator.Tick(1f, 25f);
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
+		Begin(9, "fast_1");
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(10));
+		Assert.That(ScoreSheet.Deductions.Count, Is.EqualTo(1));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.AccelerationEntryTooFast));
+	}
+
+	[TestCase(19.9f, 0)]
+	[TestCase(20f, 10)]
+	[TestCase(30f, 10)]
+	public void BeginSection_AccelerationSectionExit_DeductsAtOrAbove20Kmh(float exitSpeedKmh, int expectedDeduction)
+	{
+		Begin(8, "fast_0");
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
+		evaluator.Tick(1f, 25f);
+		evaluator.Tick(1f, exitSpeedKmh);
+
+		Begin(9, "fast_1");
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+		if (expectedDeduction > 0)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.AccelerationExitTooFast));
+			Assert.That(ScoreSheet.Deductions[0].PointNumber, Is.EqualTo(8));
+		}
+	}
+
+	[Test]
+	public void BeginSection_AccelerationSectionFastEntryAndExit_DeductsBoth()
+	{
+		Begin(8, "fast_0");
+		evaluator.Tick(1f, 25f);
+		evaluator.Tick(1f, 25f);
+
+		Begin(9, "fast_1");
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(20));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.AccelerationEntryTooFast));
+		Assert.That(ScoreSheet.Deductions[1].Reason, Is.EqualTo(DrivingDeductionReason.AccelerationExitTooFast));
+	}
+
+	// The point crossing happens between ticks, so a crossing sample decides over the neighbouring tick.
+	[TestCase(20.1f, 10f, 10)]
+	[TestCase(19.9f, 25f, 0)]
+	public void BeginSection_AccelerationEntryCrossingSpeed_JudgedInsteadOfFirstTick(float crossingSpeedKmh,
+		float firstTickSpeedKmh, int expectedDeduction)
+	{
+		evaluator.BeginSection(8, new[] { "fast_0" }, crossingSpeedKmh);
+
+		evaluator.Tick(1f, firstTickSpeedKmh);
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+		if (expectedDeduction > 0)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.AccelerationEntryTooFast));
+		}
+	}
+
+	[TestCase(19.9f, 20.1f, 10)]
+	[TestCase(20.5f, 19.9f, 0)]
+	public void BeginSection_AccelerationExitCrossingSpeed_JudgedInsteadOfLastTick(float lastTickSpeedKmh,
+		float crossingSpeedKmh, int expectedDeduction)
+	{
+		Begin(8, "fast_0");
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
+		evaluator.Tick(1f, 25f);
+		evaluator.Tick(1f, lastTickSpeedKmh);
+
+		evaluator.BeginSection(9, new[] { "fast_1" }, crossingSpeedKmh);
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+		if (expectedDeduction > 0)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.AccelerationExitTooFast));
+			Assert.That(ScoreSheet.Deductions[0].PointNumber, Is.EqualTo(8));
+		}
 	}
 
 	[Test]
@@ -509,6 +634,7 @@ public class DrivingScoringTests
 	public void Tick_OverSpeedInAccelerationSection_NoSpeedLimitDeduction()
 	{
 		Begin(8, "fast");
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
 
 		evaluator.Tick(10f, 40f);
 
@@ -553,15 +679,34 @@ public class DrivingScoringTests
 
 	private const float DrivingKmh = 10f;
 
+	private const float DeviceOperationLimitSeconds = 5f;
+	private const int DeviceOperationPenalty = 5;
+
 	private static DrivingVehicleState Controls(bool seatBelt = true, bool engine = true, bool hazard = false,
-		bool leftSignal = false, bool rightSignal = false, bool parkingBrake = false)
+		bool leftSignal = false, bool rightSignal = false, bool parkingBrake = false, bool headlight = false,
+		bool wiper = false)
 	{
-		return new DrivingVehicleState(seatBelt, engine, hazard, leftSignal, rightSignal, parkingBrake);
+		return new DrivingVehicleState(seatBelt, engine, hazard, leftSignal, rightSignal, parkingBrake, headlight, wiper);
 	}
 
 	private void Tick(float deltaSeconds, float speedKmh, DrivingVehicleState vehicleState)
 	{
 		evaluator.Tick(deltaSeconds, speedKmh, 0f, vehicleState);
+	}
+
+	// Passes the start seat belt and engine instructions while stopped, so later instructions can be tested alone.
+	private void CompleteStartSeatBeltAndEngine()
+	{
+		Tick(1f, StoppedKmh, Controls());
+		Tick(1f, StoppedKmh, Controls());
+	}
+
+	// Passes every start device instruction while stopped, so departure rules can be tested alone.
+	private void CompleteStartDeviceOperations()
+	{
+		CompleteStartSeatBeltAndEngine();
+		Tick(1f, StoppedKmh, Controls(headlight: true));
+		Tick(1f, StoppedKmh, Controls(headlight: true, wiper: true));
 	}
 
 	[Test]
@@ -604,23 +749,30 @@ public class DrivingScoringTests
 		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.EngineStalled));
 	}
 
-	[TestCase(true, 0)]
-	[TestCase(false, 5)]
-	public void Tick_StartDeparture_DeductsWithoutTurnSignalAtDeparture(bool isSignalOnAtDeparture, int expectedDeduction)
+	[TestCase(true, false, 0)]
+	[TestCase(false, false, 5)]
+	[TestCase(false, true, 5)]
+	public void Tick_StartDeparture_DeductsWithoutLeftSignalAtDeparture(bool isLeftSignalOn, bool isRightSignalOn,
+		int expectedDeduction)
 	{
 		Begin(0, "start");
+		CompleteStartDeviceOperations();
 
-		Tick(1f, StoppedKmh, Controls());
-		Tick(1f, DrivingKmh, Controls(leftSignal: isSignalOnAtDeparture));
+		Tick(1f, DrivingKmh, Controls(leftSignal: isLeftSignalOn, rightSignal: isRightSignalOn));
 		Tick(1f, DrivingKmh, Controls());
 
 		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+		if (expectedDeduction > 0)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.StartSignalMissing));
+		}
 	}
 
 	[Test]
 	public void Tick_StartSignalCancelledBeforeDeparture_Deducts5()
 	{
 		Begin(0, "start");
+		CompleteStartDeviceOperations();
 
 		Tick(1f, StoppedKmh, Controls(leftSignal: true));
 		Tick(1f, StoppedKmh, Controls());
@@ -628,6 +780,163 @@ public class DrivingScoringTests
 
 		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(5));
 		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.StartSignalMissing));
+	}
+
+	[Test]
+	public void Tick_StartDeviceOperationsInOrder_InstructsSeatBeltEngineHeadlightWiperThenDeparture()
+	{
+		Begin(0, "start");
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.SeatBelt));
+
+		Tick(1f, StoppedKmh, Controls(seatBelt: true, engine: false));
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Engine));
+
+		Tick(1f, StoppedKmh, Controls());
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Headlight));
+
+		Tick(1f, StoppedKmh, Controls(headlight: true));
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Wiper));
+
+		Tick(1f, StoppedKmh, Controls(headlight: true, wiper: true));
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Depart));
+
+		Tick(1f, DrivingKmh, Controls(leftSignal: true, headlight: true, wiper: true));
+
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.None));
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	[TestCase(5f, 0)]
+	[TestCase(5.1f, DeviceOperationPenalty)]
+	public void Tick_StartSeatBeltInstruction_DeductsAfterTimeLimit(float waitSeconds, int expectedDeduction)
+	{
+		Begin(0, "start");
+
+		Tick(waitSeconds, StoppedKmh, Controls(seatBelt: false, engine: false));
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+		if (expectedDeduction > 0)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.SeatBeltNotFastened));
+			Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Engine));
+		}
+	}
+
+	[Test]
+	public void Tick_StartEngineInstruction_TimeLimitStartsAfterSeatBelt()
+	{
+		Begin(0, "start");
+		Tick(4f, StoppedKmh, Controls(seatBelt: true, engine: false));
+
+		Tick(DeviceOperationLimitSeconds, StoppedKmh, Controls(seatBelt: true, engine: false));
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+
+		Tick(0.1f, StoppedKmh, Controls(seatBelt: true, engine: false));
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(DeviceOperationPenalty));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.EngineNotStarted));
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Headlight));
+	}
+
+	[TestCase(5f, 0)]
+	[TestCase(5.1f, DeviceOperationPenalty)]
+	public void Tick_StartHeadlightInstruction_DeductsAfterTimeLimit(float waitSeconds, int expectedDeduction)
+	{
+		Begin(0, "start");
+		CompleteStartSeatBeltAndEngine();
+
+		Tick(waitSeconds, StoppedKmh, Controls());
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedDeduction));
+		if (expectedDeduction > 0)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.HeadlightNotOperated));
+			Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Wiper));
+		}
+	}
+
+	[Test]
+	public void Tick_StartWiperInstruction_TimeLimitStartsAfterHeadlight()
+	{
+		Begin(0, "start");
+		CompleteStartSeatBeltAndEngine();
+		Tick(4f, StoppedKmh, Controls(headlight: true));
+
+		Tick(DeviceOperationLimitSeconds, StoppedKmh, Controls(headlight: true));
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+
+		Tick(0.1f, StoppedKmh, Controls(headlight: true));
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(DeviceOperationPenalty));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.WiperNotOperated));
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Depart));
+	}
+
+	[TestCase(true)]
+	[TestCase(false)]
+	public void Tick_StartDeviceOperatedAfterTimeLimit_Deducts(bool isHeadlightLate)
+	{
+		Begin(0, "start");
+		CompleteStartSeatBeltAndEngine();
+		if (!isHeadlightLate)
+		{
+			Tick(1f, StoppedKmh, Controls(headlight: true));
+		}
+
+		Tick(4.9f, StoppedKmh, Controls(headlight: !isHeadlightLate));
+		Tick(0.2f, StoppedKmh, Controls(headlight: true, wiper: true));
+
+		DrivingDeductionReason expectedReason = isHeadlightLate
+			? DrivingDeductionReason.HeadlightNotOperated
+			: DrivingDeductionReason.WiperNotOperated;
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(DeviceOperationPenalty));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(expectedReason));
+	}
+
+	[Test]
+	public void Tick_StartDevicesAlreadyOn_GivesEachInstructionOnItsOwnTick()
+	{
+		Begin(0, "start");
+		DrivingVehicleState devicesOn = Controls(headlight: true, wiper: true);
+
+		Tick(0.1f, StoppedKmh, devicesOn);
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Engine));
+
+		Tick(0.1f, StoppedKmh, devicesOn);
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Headlight));
+
+		Tick(0.1f, StoppedKmh, devicesOn);
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Wiper));
+
+		Tick(0.1f, StoppedKmh, devicesOn);
+
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.Depart));
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+	}
+
+	// Departure needs the engine on and the seat belt is judged by disqualification, so only the headlight and
+	// the wiper are deducted when departing early.
+	[Test]
+	public void Tick_StartDepartureBeforeDeviceOperations_DeductsEachUnoperatedDevice()
+	{
+		Begin(0, "start");
+
+		Tick(1f, DrivingKmh, Controls(leftSignal: true));
+
+		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(DeviceOperationPenalty * 2));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.HeadlightNotOperated));
+		Assert.That(ScoreSheet.Deductions[1].Reason, Is.EqualTo(DrivingDeductionReason.WiperNotOperated));
+	}
+
+	[Test]
+	public void Tick_StartWithoutVehicleState_DoesNotAdvanceDeviceInstructions()
+	{
+		Begin(0, "start");
+
+		evaluator.Tick(10f, StoppedKmh);
+
+		Assert.That(ScoreSheet.Deductions, Is.Empty);
+		Assert.That(evaluator.CurrentStartInstruction, Is.EqualTo(DrivingStartInstruction.SeatBelt));
 	}
 
 	[TestCase("left", true, false, 0)]

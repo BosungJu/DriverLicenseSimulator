@@ -26,7 +26,13 @@ public enum DrivingDeductionReason
 	EngineStalled,
 	SeatBeltNotWorn,
 	EmergencyHazardEarly,
-	SignalViolation
+	SignalViolation,
+	AccelerationEntryTooFast,
+	AccelerationExitTooFast,
+	HeadlightNotOperated,
+	WiperNotOperated,
+	SeatBeltNotFastened,
+	EngineNotStarted
 }
 
 public sealed class DrivingDeduction

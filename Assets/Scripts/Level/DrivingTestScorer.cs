@@ -39,8 +39,15 @@ public class DrivingTestScorer : MonoBehaviour
 	private Rigidbody scoredVehicleRigidbody;
 	private Rigidbody controlSourceRigidbody;
 	private CarController scoredVehicleController;
+	private WiperController scoredVehicleWiper;
+	private DrivingStartInstruction notifiedStartInstruction = DrivingStartInstruction.None;
 
 	public DrivingScoreSheet ScoreSheet => evaluator.ScoreSheet;
+	// None before Awake creates the evaluator, so listeners can read it while enabling.
+	public DrivingStartInstruction CurrentStartInstruction =>
+		evaluator != null ? evaluator.CurrentStartInstruction : DrivingStartInstruction.None;
+	// Raised when the start section asks for the next device operation or departure, and with None once it stops asking.
+	public event System.Action<DrivingStartInstruction> StartInstructionChanged;
 	public int Score => evaluator.ScoreSheet.Score;
 	public bool IsPassed => evaluator.ScoreSheet.IsPassed;
 	public DrivingScoreChangedEvent OnScoreChanged => onScoreChanged;
@@ -111,7 +118,21 @@ public class DrivingTestScorer : MonoBehaviour
 		}
 
 		SyncSection();
+		TickEvaluator();
+		NotifyStartInstructionIfChanged();
+	}
 
+	public void ResetScore()
+	{
+		evaluator.Reset();
+		scoredSection = null;
+
+		onScoreChanged.Invoke(evaluator.ScoreSheet.Score);
+		NotifyStartInstructionIfChanged();
+	}
+
+	private void TickEvaluator()
+	{
 		Rigidbody vehicleBody = GetVehicleRigidbody();
 		if (vehicleBody == null || scoredSection == null)
 		{
@@ -126,12 +147,17 @@ public class DrivingTestScorer : MonoBehaviour
 			GetApproachSignalState(vehicleBody.position));
 	}
 
-	public void ResetScore()
+	// The start instruction advances inside the evaluator, so it is compared once per frame after scoring.
+	private void NotifyStartInstructionIfChanged()
 	{
-		evaluator.Reset();
-		scoredSection = null;
+		DrivingStartInstruction currentInstruction = evaluator.CurrentStartInstruction;
+		if (currentInstruction == notifiedStartInstruction)
+		{
+			return;
+		}
 
-		onScoreChanged.Invoke(evaluator.ScoreSheet.Score);
+		notifiedStartInstruction = currentInstruction;
+		StartInstructionChanged?.Invoke(currentInstruction);
 	}
 
 	// Section entry happens in a physics callback, so the scorer catches up before using the section.
@@ -144,7 +170,22 @@ public class DrivingTestScorer : MonoBehaviour
 		}
 
 		scoredSection = currentSection;
-		evaluator.BeginSection(currentSection.PointNumber, currentSection.Commands);
+		evaluator.BeginSection(currentSection.PointNumber, currentSection.Commands, SampleCrossingSpeedKmh());
+
+		// Notify before the first tick, which may already pass the first instruction.
+		NotifyStartInstructionIfChanged();
+	}
+
+	// Called while the section changes, so in a physics callback this is the speed at the point crossing.
+	private float? SampleCrossingSpeedKmh()
+	{
+		Rigidbody vehicleBody = GetVehicleRigidbody();
+		if (vehicleBody == null)
+		{
+			return null;
+		}
+
+		return vehicleBody.linearVelocity.magnitude * MetersPerSecondToKmh;
 	}
 
 	private void HandleInstructionStarted(int pointNumber, string command)
@@ -236,8 +277,11 @@ public class DrivingTestScorer : MonoBehaviour
 		}
 
 		VehicleSystems vehicleSystems = vehicleController.systems;
+		bool isHeadlightOn = vehicleSystems.HeadlightOn || vehicleSystems.HighBeamOn;
+		bool isWiperOn = scoredVehicleWiper != null && scoredVehicleWiper.IsWiping;
 		return new DrivingVehicleState(vehicleSystems.SeatBeltOn, vehicleSystems.EngineOn, vehicleSystems.HazardOn,
-			vehicleSystems.LeftSignalOn, vehicleSystems.RightSignalOn, vehicleController.ParkingBrakeOn);
+			vehicleSystems.LeftSignalOn, vehicleSystems.RightSignalOn, vehicleController.ParkingBrakeOn,
+			isHeadlightOn, isWiperOn);
 	}
 
 	// Looked up once per vehicle Rigidbody rather than every frame.
@@ -253,6 +297,15 @@ public class DrivingTestScorer : MonoBehaviour
 		if (scoredVehicleController == null || scoredVehicleController.systems == null)
 		{
 			Debug.LogWarning("DrivingTestScorer: CarController or its VehicleSystems is missing; seat belt, engine, signal and parking brake rules are skipped.", this);
+		}
+
+		// The wiper is optional on a vehicle, like on the dashboard; without one the wiper instruction cannot be passed.
+		scoredVehicleWiper = scoredVehicleController != null
+			? scoredVehicleController.GetComponentInChildren<WiperController>(true)
+			: null;
+		if (scoredVehicleController != null && scoredVehicleWiper == null)
+		{
+			Debug.LogWarning("DrivingTestScorer: WiperController is missing on the vehicle; the start wiper instruction will be deducted.", this);
 		}
 
 		return scoredVehicleController;

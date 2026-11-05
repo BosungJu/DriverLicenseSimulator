@@ -8,7 +8,8 @@ public class DrivingTestHud : MonoBehaviour
 	private const int FontSize = 22;
 	private const float PanelMargin = 16f;
 	private const float PanelWidth = 420f;
-	private const float PanelHeight = 230f;
+	// Fits the start instruction line on top of the regular status lines.
+	private const float PanelHeight = 260f;
 
 	[Header("References")]
 	[SerializeField] private DrivingTestLevel drivingTestLevel;
@@ -80,6 +81,12 @@ public class DrivingTestHud : MonoBehaviour
 		status.AppendLine($"Speed  {GetVehicleSpeedKmh():0} km/h");
 		status.AppendLine($"Point  {FormatCurrentPoint()}");
 		status.AppendLine($"Command  {FormatCurrentInstructions()}");
+		string startInstruction = FormatStartInstruction(drivingTestScorer.CurrentStartInstruction);
+		if (startInstruction.Length > 0)
+		{
+			status.AppendLine($"<color=yellow><b>{startInstruction}</b></color>");
+		}
+
 		status.AppendLine($"Score  {scoreSheet.Score}/{scoreSheet.MaxScore}");
 		status.AppendLine($"Last  {FormatDeduction(lastDeduction)}");
 
@@ -132,6 +139,25 @@ public class DrivingTestHud : MonoBehaviour
 		}
 
 		return string.Join(" | ", drivingTestLevel.CurrentInstructions);
+	}
+
+	private static string FormatStartInstruction(DrivingStartInstruction instruction)
+	{
+		switch (instruction)
+		{
+			case DrivingStartInstruction.SeatBelt:
+				return "Fasten the seat belt";
+			case DrivingStartInstruction.Engine:
+				return "Start the engine";
+			case DrivingStartInstruction.Headlight:
+				return "Turn on the headlights";
+			case DrivingStartInstruction.Wiper:
+				return "Turn on the wipers";
+			case DrivingStartInstruction.Depart:
+				return "Depart with the left signal on";
+			default:
+				return string.Empty;
+		}
 	}
 
 	private static string FormatDeduction(DrivingDeduction deduction)
