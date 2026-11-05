@@ -33,7 +33,7 @@ public class CarController : MonoBehaviour
     public float accelRate = 1200f;
     [Tooltip("초당 토크 감소량 (가속 페달을 뗄 때)")]
     public float releaseRate = 2500f;
-    [Tooltip("1단 기어 기준 최고 속도(km/h). 엑셀을 끝까지 밟았을 때의 목표 속도이며, 엑셀 강도에 비례해 목표 속도가 정해진다 (0.1이면 10%)")]
+    [Tooltip("전진 최고 속도(km/h). 엑셀 강도와 무관한 구동력 차단 기준이며 자동변속 속도도 이 값에 비례한다. 관성이나 내리막에 의한 초과 속도를 강제로 제한하지는 않는다")]
     public float maxSpeedKmh = 110f;
 
     [Header("Throttle Response")]
@@ -41,7 +41,7 @@ public class CarController : MonoBehaviour
     [SerializeField, Range(0f, 0.1f)] float throttleDeadZone = 0.02f;
     [Tooltip("데드존을 넘은 가장 약한 엑셀에서도 전달되는 최소 토크 비율(motorForce 기준). 엑셀 강도가 커질수록 1까지 선형으로 늘어난다")]
     [SerializeField, Range(0f, 1f)] float minimumDriveTorqueRatio = 0.3f;
-    [Tooltip("목표 속도에 이만큼(km/h) 가까워지면 토크를 서서히 줄여 같은 엑셀 강도에서 일정한 속도를 유지한다")]
+    [Tooltip("전진/후진 최고 속도에 이만큼(km/h) 가까워지면 구동 토크를 서서히 줄인다")]
     [SerializeField, Min(0.1f)] float throttleSpeedFadeKmh = 2f;
     [Tooltip("브레이크를 끝까지 밟았을 때 물리 스텝마다 속도에 곱하는 비율. 작을수록 빨리 선다 (1이면 추가 감속 없음)")]
     [SerializeField, Range(0.9f, 1f)] float fullBrakeVelocityDamping = 0.98f;
@@ -62,6 +62,12 @@ public class CarController : MonoBehaviour
     [Tooltip("이 속도(m/s) 이하일 때만 변속을 허용한다. 물리 연산의 미세한 움직임은 정지로 간주하기 위한 값")]
     [SerializeField, Min(0f)] float gearShiftMaxSpeedMetersPerSecond = 0.05f;
 
+    [Header("Automatic Transmission")]
+    [Tooltip("D에서 1~4단 자동변속에 걸리는 시간(초). 변속 중에는 구동 토크가 줄어든다")]
+    [SerializeField, Min(0f)] float automaticShiftDurationSeconds = 0.35f;
+    [Tooltip("후진 최고 속도(km/h). 후진은 자동변속 없이 고정 기어를 사용한다")]
+    [SerializeField, Min(0f)] float maxReverseSpeedKmh = 20f;
+
     [Header("Physics")]
     [Tooltip("Rigidbody 기준 무게중심 위치(로컬 좌표). 낮을수록 잘 전복되지 않는다. 플레이 중 바꾸면 바로 적용된다")]
     [SerializeField] Vector3 centerOfMassOffset = new Vector3(0f, -0.7f, 0f);
@@ -80,6 +86,7 @@ public class CarController : MonoBehaviour
 
     float currentSteerAngle; // 현재 적용 중인 조향각
     float currentMotor; // 현재 적용 중인 모터 토크
+    private readonly AutomaticTransmission automaticTransmission = new AutomaticTransmission();
 
     VehicleGear currentGear = VehicleGear.Park;
     bool parkingBrakeOn;
@@ -88,6 +95,8 @@ public class CarController : MonoBehaviour
     Rigidbody rb;
 
     public VehicleGear CurrentGear => currentGear;
+    public int CurrentForwardGear => currentGear == VehicleGear.Drive ? automaticTransmission.CurrentGear : 0;
+    public bool IsAutomaticShifting => currentGear == VehicleGear.Drive && automaticTransmission.IsShifting;
     public bool ParkingBrakeOn => parkingBrakeOn;
     public float SteeringInput => moveInput.Steering; // 깜빡이 자동취소 등에서 읽기용
     public float ThrottleInput => moveInput.Throttle; // AI 리포트 기록용 (0 ~ 1)
@@ -103,6 +112,8 @@ public class CarController : MonoBehaviour
     void OnDisable()
     {
         SetInputEnabled(false);
+        automaticTransmission.Reset();
+        ResetDriveTorque();
     }
 
     void Start()
@@ -305,15 +316,8 @@ public class CarController : MonoBehaviour
         currentGear = nextGear;
 
         // 이전 기어의 토크가 새 기어에 남지 않도록 즉시 초기화한다.
-        currentMotor = 0f;
-        if (rearLeftCollider != null)
-        {
-            rearLeftCollider.motorTorque = 0f;
-        }
-        if (rearRightCollider != null)
-        {
-            rearRightCollider.motorTorque = 0f;
-        }
+        automaticTransmission.Reset();
+        ResetDriveTorque();
 
         Debug.Log($"[CarController] Gear shifted: {currentGear}", this);
     }
@@ -352,14 +356,23 @@ public class CarController : MonoBehaviour
         // 시동 OFF, P/N 또는 주차 브레이크 작동 중에는 구동 토크를 즉시 차단한다.
         if (systems == null || !systems.EngineOn || gearTorqueDirection == 0f || parkingBrakeOn)
         {
-            currentMotor = 0f;
-            rearLeftCollider.motorTorque = 0f;
-            rearRightCollider.motorTorque = 0f;
+            automaticTransmission.Reset();
+            ResetDriveTorque();
             return;
         }
 
         // 선택한 기어 방향으로의 속도. D에서 뒤로 밀리면 음수가 되어 토크가 줄지 않으므로 엑셀로 밀림을 막을 수 있다
         float gearDirectionSpeedKmh = Vector3.Dot(rb.linearVelocity, transform.forward) * gearTorqueDirection * 3.6f;
+        if (currentGear == VehicleGear.Drive)
+        {
+            automaticTransmission.Tick(gearDirectionSpeedKmh, maxSpeedKmh,
+                automaticShiftDurationSeconds, Time.fixedDeltaTime);
+        }
+        else
+        {
+            automaticTransmission.Reset();
+        }
+
         float targetMotor = CalculateDriveTorque(moveInput.Throttle, gearDirectionSpeedKmh) * gearTorqueDirection;
 
         // 목표 토크가 커지면 accelRate, 작아지면 releaseRate 적용
@@ -371,22 +384,36 @@ public class CarController : MonoBehaviour
         rearRightCollider.motorTorque = currentMotor;
     }
 
-    // 기어 변속이 없는 1단 기준: 엑셀 강도가 목표 속도(maxSpeedKmh × 엑셀)를 정하고,
-    // 약한 엑셀에서도 차가 출발하도록 최소 토크를 보장한다. 목표 속도 근처에서는 토크를 줄여 그 속도를 유지한다.
+    void ResetDriveTorque()
+    {
+        currentMotor = 0f;
+        if (rearLeftCollider != null)
+        {
+            rearLeftCollider.motorTorque = 0f;
+        }
+        if (rearRightCollider != null)
+        {
+            rearRightCollider.motorTorque = 0f;
+        }
+    }
+
+    // 엑셀은 구동력을 조절하고, D의 자동변속 단수는 속도로 결정한다.
+    // 최고 속도 근처에서만 토크를 줄이므로 약한 엑셀이 특정 속도의 제한으로 작용하지 않는다.
     // gearDirectionSpeedKmh는 선택한 기어 방향 기준이며, 반대 방향으로 움직이면 음수다
     float CalculateDriveTorque(float throttle, float gearDirectionSpeedKmh)
     {
-        if (throttle < throttleDeadZone)
+        float speedLimitKmh = currentGear == VehicleGear.Reverse ? maxReverseSpeedKmh : maxSpeedKmh;
+        if (throttle <= 0f || throttle < throttleDeadZone || speedLimitKmh <= 0f)
         {
             return 0f;
         }
 
         float throttleTorqueRatio = Mathf.Lerp(minimumDriveTorqueRatio, 1f, throttle);
 
-        float throttleTargetSpeedKmh = maxSpeedKmh * throttle;
-        float speedFadeRatio = Mathf.Clamp01((throttleTargetSpeedKmh - gearDirectionSpeedKmh) / throttleSpeedFadeKmh);
+        float speedFadeRatio = Mathf.Clamp01((speedLimitKmh - gearDirectionSpeedKmh) / Mathf.Max(0.1f, throttleSpeedFadeKmh));
+        float gearTorqueRatio = currentGear == VehicleGear.Drive ? automaticTransmission.TorqueRatio : 1f;
 
-        return motorForce * throttleTorqueRatio * speedFadeRatio;
+        return motorForce * throttleTorqueRatio * gearTorqueRatio * speedFadeRatio;
     }
 
     void Steer()

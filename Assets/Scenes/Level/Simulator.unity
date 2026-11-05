@@ -957,7 +957,7 @@ Material:
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
@@ -2739,34 +2739,6 @@ PrefabInstance:
     - target: {fileID: 5899985786913793552, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6655718024998965398, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 1.263
-      objectReference: {fileID: 0}
-    - target: {fileID: 6655718024998965398, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: -0.112
-      objectReference: {fileID: 0}
-    - target: {fileID: 6983828320868256401, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.9961947
-      objectReference: {fileID: 0}
-    - target: {fileID: 6983828320868256401, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0.08715578
-      objectReference: {fileID: 0}
-    - target: {fileID: 6983828320868256401, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 10
-      objectReference: {fileID: 0}
-    - target: {fileID: 7454788612032214601, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 1.0244
-      objectReference: {fileID: 0}
-    - target: {fileID: 7454788612032214601, guid: 8d17de1e7b152d946ab4e0a36affb4fc, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0.2722
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
