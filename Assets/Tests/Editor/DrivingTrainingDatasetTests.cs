@@ -11,7 +11,12 @@ public class DrivingTrainingDatasetTests
 		"[\"speed_kmh\",\"accel_mps2\",\"yaw_rate_dps\",\"steering_input\",\"throttle_input\",\"brake_input\"," +
 		"\"gear_park\",\"gear_reverse\",\"gear_neutral\",\"gear_drive\",\"parking_brake_on\"," +
 		"\"engine_on\",\"left_signal_on\",\"right_signal_on\",\"hazard_on\",\"headlight_on\",\"high_beam_on\"," +
-		"\"seat_belt_on\",\"horn_on\"]";
+		"\"seat_belt_on\",\"horn_on\",\"section_start\",\"section_acceleration\",\"section_emergency\"," +
+		"\"section_hill_stop\",\"section_signal\",\"section_left_turn\",\"section_right_turn\",\"section_parking\"," +
+		"\"section_finish_approach\"]";
+
+	// Section columns of a sample whose section turns on no scoring rule.
+	private const string SectionFlagsOff = ",0,0,0,0,0,0,0,0,0";
 
 	#region Normal Cases
 
@@ -44,11 +49,12 @@ public class DrivingTrainingDatasetTests
 		Assert.AreEqual(
 			"{\"schema_version\":1,\"sample_rate_hz\":50,\"run_id\":\"run-1\",\"section_id\":1,\"start_time_s\":0.000," +
 			"\"feature_names\":" + ExpectedFeatureNames + ",\"features\":[" +
-			"[4.000,-0.500,3.000,-0.250,0.500,1.000,0,0,0,1,0,1,1,0,0,1,0,1,0]," +
-			"[0.000,0.000,0.000,0.000,0.000,0.000,0,1,0,0,1,1,0,0,0,0,0,0,0]]}",
+			"[4.000,-0.500,3.000,-0.250,0.500,1.000,0,0,0,1,0,1,1,0,0,1,0,1,0" + SectionFlagsOff + "]," +
+			"[0.000,0.000,0.000,0.000,0.000,0.000,0,1,0,0,1,1,0,0,0,0,0,0,0" + SectionFlagsOff + "]]}",
 			lines[0]);
 		StringAssert.Contains("\"section_id\":2,\"start_time_s\":0.040,", lines[1]);
-		StringAssert.EndsWith("\"features\":[[0.000,0.000,0.000,0.000,0.000,0.000,0,0,0,1,0,1,0,0,1,0,1,0,1]]}", lines[1]);
+		StringAssert.EndsWith("\"features\":[[0.000,0.000,0.000,0.000,0.000,0.000,0,0,0,1,0,1,0,0,1,0,1,0,1" + SectionFlagsOff + "]]}",
+			lines[1]);
 	}
 
 	[Test]

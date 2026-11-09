@@ -5,7 +5,8 @@ using UnityEngine;
 
 // Collects AI training data: when ReportManager exports a finished course, the recorded samples are converted
 // into unlabeled section records (training_sections.jsonl) in the same session folder.
-// Merge the session files and add split/label_names/labels offline to build the training set.
+// The AI project's src/deduction_labels.py merges the session files and labels each section from the
+// deductions in section_results.json to build the training set.
 [DisallowMultipleComponent]
 public class TrainingDataCollector : MonoBehaviour
 {

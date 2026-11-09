@@ -42,6 +42,9 @@ public class ReportManager : MonoBehaviour
 	private Rigidbody recordedVehicleRigidbody;
 	private Rigidbody inputSourceRigidbody;
 	private CarController recordedVehicleController;
+	private MapRouteSection featureSourceSection;
+	private DrivingSectionTraits currentSectionTraits;
+	private bool isCurrentSectionFinishApproach;
 
 	public IReadOnlyList<DrivingSample> Samples => samples;
 	public string LastExportDirectory { get; private set; }
@@ -81,10 +84,14 @@ public class ReportManager : MonoBehaviour
 	// Physics steps give the LSTM a fixed sample rate regardless of the rendering frame rate.
 	private void FixedUpdate()
 	{
-		if (drivingTestLevel == null || drivingTestLevel.IsCompleted || drivingTestLevel.CurrentSection == null)
+		// The scorer and map are needed for the section features; without them OnEnable never subscribes to the export.
+		if (drivingTestLevel == null || drivingTestScorer == null || mapGenerator == null ||
+			drivingTestLevel.IsCompleted || drivingTestLevel.CurrentSection == null)
 		{
 			return;
 		}
+
+		UpdateSectionFeatures(drivingTestLevel.CurrentSection);
 
 		Rigidbody vehicleBody = GetVehicleRigidbody();
 		if (vehicleBody == null)
@@ -132,6 +139,7 @@ public class ReportManager : MonoBehaviour
 		previousForwardSpeedMps = 0f;
 		hasPreviousSample = false;
 		isExportPending = false;
+		featureSourceSection = null;
 	}
 
 	// Only marks the export as pending; LateUpdate performs it after the scorer's final deductions.
@@ -174,7 +182,9 @@ public class ReportManager : MonoBehaviour
 			IsHeadlightOn = vehicleSystems != null && vehicleSystems.HeadlightOn,
 			IsHighBeamOn = vehicleSystems != null && vehicleSystems.HighBeamOn,
 			IsSeatBeltOn = vehicleSystems != null && vehicleSystems.SeatBeltOn,
-			IsHornOn = vehicleSystems != null && vehicleSystems.HornOn
+			IsHornOn = vehicleSystems != null && vehicleSystems.HornOn,
+			SectionTraits = currentSectionTraits,
+			IsFinishApproach = isCurrentSectionFinishApproach
 		});
 
 		previousForwardSpeedMps = forwardSpeedMps;
@@ -254,6 +264,26 @@ public class ReportManager : MonoBehaviour
 		}
 
 		return resultFile;
+	}
+
+	// Section features only change on section entry, so they are derived once per section with the scorer's settings.
+	// The finish point completes the course on entry, so its turn signal rule judges the section before it.
+	private void UpdateSectionFeatures(MapRouteSection currentSection)
+	{
+		if (currentSection == featureSourceSection)
+		{
+			return;
+		}
+
+		featureSourceSection = currentSection;
+		int hillStopStep = drivingTestScorer.ScoringSettings.HillStopStep;
+		currentSectionTraits = DrivingSectionTraits.FromCommands(currentSection.Commands, hillStopStep);
+
+		IReadOnlyList<MapRouteSection> routeSections = mapGenerator.RouteSections;
+		int nextRouteIndex = currentSection.RouteIndex + 1;
+		MapRouteSection nextSection = nextRouteIndex < routeSections.Count ? routeSections[nextRouteIndex] : null;
+		isCurrentSectionFinishApproach = nextSection != null &&
+			DrivingSectionTraits.FromCommands(nextSection.Commands, hillStopStep).IsFinish;
 	}
 
 	// Returns how many recorded samples belong to the section with the given point number.

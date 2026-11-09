@@ -99,6 +99,7 @@ public sealed class DrivingTestScoreEvaluator
 	public void BeginSection(int pointNumber, IReadOnlyList<string> commands, float? crossingSpeedKmh = null)
 	{
 		IReadOnlyList<string> nextCommands = commands ?? Array.Empty<string>();
+		DrivingSectionTraits nextTraits = DrivingSectionTraits.FromCommands(nextCommands, settings.HillStopStep);
 
 		// The course completes as soon as the finish point is reached, so the finish signal is judged
 		// on the approach section that is ending now.
@@ -107,19 +108,17 @@ public sealed class DrivingTestScoreEvaluator
 
 		if (hasSection)
 		{
-			bool continuesParkingCourse = HasActiveParkingCommand(nextCommands);
-			EndSection(continuesParkingCourse, crossingSpeedKmh);
+			EndSection(nextTraits.IsParking, crossingSpeedKmh);
 		}
 
 		isCourseRunning = true;
 		hasSection = true;
 		recorder.AssignPointNumber(pointNumber);
 		currentCommands = nextCommands;
-		isAccelerationSection = HasCommand(currentCommands, DrivingScoringSettings.AccelerationCommand)
-			&& !HasCommandStep(currentCommands, DrivingScoringSettings.AccelerationCommand, DrivingScoringSettings.AccelerationExitStep);
-		isSignalSection = HasCommand(currentCommands, DrivingScoringSettings.SignalCommand);
-		isRightTurnSection = HasCommand(currentCommands, DrivingScoringSettings.RightTurnCommand);
-		AddSectionJudges(hasApproachVehicleState, hasApproachTurnSignal);
+		isAccelerationSection = nextTraits.IsAcceleration;
+		isSignalSection = nextTraits.IsSignal;
+		isRightTurnSection = nextTraits.IsRightTurn;
+		AddSectionJudges(nextTraits, hasApproachVehicleState, hasApproachTurnSignal);
 
 		// The speed limit excludes the acceleration section, so an over-speed run does not carry into or out of it.
 		if (isAccelerationSection)
@@ -262,45 +261,45 @@ public sealed class DrivingTestScoreEvaluator
 	}
 
 	// The order matches the order the section rules are applied in each tick and at section end.
-	private void AddSectionJudges(bool hasApproachVehicleState, bool hasApproachTurnSignal)
+	private void AddSectionJudges(DrivingSectionTraits sectionTraits, bool hasApproachVehicleState, bool hasApproachTurnSignal)
 	{
-		if (HasCommand(currentCommands, DrivingScoringSettings.StartCommand))
+		if (sectionTraits.IsStart)
 		{
 			startJudge = new StartSectionJudge(settings, recorder);
 			sectionJudges.Add(startJudge);
 		}
 
-		if (isAccelerationSection)
+		if (sectionTraits.IsAcceleration)
 		{
 			sectionJudges.Add(new AccelerationSectionJudge(settings, recorder));
 		}
 
-		if (HasCommand(currentCommands, DrivingScoringSettings.EmergencyCommand))
+		if (sectionTraits.IsEmergency)
 		{
 			sectionJudges.Add(new EmergencySectionJudge(settings, recorder));
 		}
 
-		if (HasCommandStep(currentCommands, DrivingScoringSettings.HillCommand, settings.HillStopStep))
+		if (sectionTraits.IsHillStop)
 		{
 			sectionJudges.Add(new HillStopSectionJudge(settings, recorder));
 		}
 
-		if (isSignalSection)
+		if (sectionTraits.IsSignal)
 		{
-			sectionJudges.Add(new SignalSectionJudge(settings, recorder, isRightTurnSection));
+			sectionJudges.Add(new SignalSectionJudge(settings, recorder, sectionTraits.IsRightTurn));
 		}
 
-		if (HasCommand(currentCommands, DrivingScoringSettings.LeftTurnCommand))
+		if (sectionTraits.IsLeftTurn)
 		{
 			sectionJudges.Add(new TurnSectionJudge(settings, recorder, true));
 		}
 
-		if (isRightTurnSection)
+		if (sectionTraits.IsRightTurn)
 		{
 			sectionJudges.Add(new TurnSectionJudge(settings, recorder, false));
 		}
 
-		if (HasActiveParkingCommand(currentCommands))
+		if (sectionTraits.IsParking)
 		{
 			if (parkingCourseJudge == null)
 			{
@@ -310,7 +309,7 @@ public sealed class DrivingTestScoreEvaluator
 			sectionJudges.Add(parkingCourseJudge);
 		}
 
-		if (HasCommand(currentCommands, DrivingScoringSettings.FinishCommand))
+		if (sectionTraits.IsFinish)
 		{
 			sectionJudges.Add(new FinishSectionJudge(settings, recorder, hasApproachVehicleState, hasApproachTurnSignal));
 		}
@@ -409,40 +408,5 @@ public sealed class DrivingTestScoreEvaluator
 		startJudge = null;
 		hasSectionVehicleState = false;
 		hasSectionTurnSignal = false;
-	}
-
-	// The terminal marker closes judging at entry; other commands on that point remain active.
-	private static bool HasActiveParkingCommand(IReadOnlyList<string> commands)
-	{
-		return HasCommand(commands, DrivingScoringSettings.ParkingCommand)
-			&& !HasCommandStep(commands, DrivingScoringSettings.ParkingCommand, DrivingScoringSettings.ParkingExitStep);
-	}
-
-	private static bool HasCommand(IReadOnlyList<string> commands, string commandName)
-	{
-		foreach (string command in commands)
-		{
-			DrivingSectionAction.SplitStep(command, out string name, out _);
-			if (string.Equals(name, commandName, StringComparison.OrdinalIgnoreCase))
-			{
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	private static bool HasCommandStep(IReadOnlyList<string> commands, string commandName, int stepIndex)
-	{
-		foreach (string command in commands)
-		{
-			DrivingSectionAction.SplitStep(command, out string name, out int step);
-			if (step == stepIndex && string.Equals(name, commandName, StringComparison.OrdinalIgnoreCase))
-			{
-				return true;
-			}
-		}
-
-		return false;
 	}
 }

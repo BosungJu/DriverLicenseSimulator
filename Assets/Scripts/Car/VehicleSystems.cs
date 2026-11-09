@@ -113,14 +113,7 @@ public class VehicleSystems : MonoBehaviour
         // 시동
         if (WasPerformed(engineAction))
         {
-            engineOn = !engineOn;
-
-            if (!engineOn)
-            {
-                TurnAllOff();
-            }
-
-            Debug.Log($"[VehicleSystems] Engine {(engineOn ? "ON" : "OFF")}", this);
+            ToggleEngine();
         }
 
         // 비상등
@@ -172,6 +165,27 @@ public class VehicleSystems : MonoBehaviour
         {
             CycleHeadlightMode();
         }
+    }
+
+    // 주행 중 시동이 꺼지면 구동력과 등화가 한꺼번에 꺼지므로, 끄는 것은 정지 상태에서만 허용한다.
+    // 시동(Hold)과 우측 깜빡이가 같은 버튼이라 깜빡이를 길게 눌렀을 때 주행 중 꺼지는 것을 막는다
+    void ToggleEngine()
+    {
+        bool isEngineOffWhileMoving = engineOn && carController != null && !carController.IsVehicleStopped;
+        if (isEngineOffWhileMoving)
+        {
+            Debug.Log("[VehicleSystems] Engine OFF rejected: stop the vehicle first.", this);
+            return;
+        }
+
+        engineOn = !engineOn;
+
+        if (!engineOn)
+        {
+            TurnAllOff();
+        }
+
+        Debug.Log($"[VehicleSystems] Engine {(engineOn ? "ON" : "OFF")}", this);
     }
 
     // 꺼짐 → 전조등 → 상향등 → 꺼짐. 상향등 단계에서도 전조등은 켜진 상태로 유지

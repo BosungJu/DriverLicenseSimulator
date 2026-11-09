@@ -23,7 +23,7 @@ public class MapGenerator : MonoBehaviour
     internal const string LineLayerName = "Line";
 	internal const string OutlineLayerName = "Outline";
 	internal const string CurbLayerName = "Curb";
-    private const string TestLayerName = "T_Test";
+    internal const string TestLayerName = "T_Test";
     private const string RoutePointLayerName = "Point";
     private const string GeneratedLineMeshName = "Generated Line Layer";
     private const string GeneratedTestMeshName = "Generated T_Test Layer";
@@ -936,9 +936,8 @@ public class MapGenerator : MonoBehaviour
 
     public void NotifyLayerTrigger(string layerName, int routePointIndex, Collider other)
     {
-        GameObject otherObject = other.attachedRigidbody != null
-            ? other.attachedRigidbody.gameObject
-            : other.gameObject;
+        // 타이어 접지 센서는 차량 Rigidbody와 분리돼 있으므로 소속 차량으로 바꿔 알린다
+        GameObject otherObject = TireContactSensor.GetOwnerObject(other);
         NotifyLayerEnter(layerName, otherObject);
         if (routePointIndex >= 0 && string.Equals(layerName, RoutePointLayerName, System.StringComparison.OrdinalIgnoreCase))
         {

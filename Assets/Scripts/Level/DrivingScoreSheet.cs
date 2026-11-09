@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 
 // Items of the class 1/2 ordinary course test that can be judged from time, speed, and line contact.
+// The names are exported to section_results.json and become LSTM training labels. When adding or renaming a reason,
+// update src/deduction_labels.py and src/report.py in DriveLicenseSimulatorAIModel; its tests read this enum.
 public enum DrivingDeductionReason
 {
 	LaneKeepingLineTouch,

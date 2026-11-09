@@ -48,7 +48,7 @@ Rigidbody:
   m_GameObject: {fileID: 4134311052562100404}
   serializedVersion: 4
   m_Mass: 1200
-  m_Drag: 0.3
+  m_Drag: 0.05
   m_AngularDrag: 0.5
   m_CenterOfMass: {x: 0, y: 0, z: 0}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
@@ -87,23 +87,22 @@ MonoBehaviour:
   rearLeftWheel: {fileID: 5265678765974715699}
   rearRightWheel: {fileID: 817248689580753180}
   motorForce: 1500
-  brakeForce: 3000
+  brakeForce: 1000
   accelRate: 1200
   releaseRate: 2500
   maxSpeedKmh: 110
-  throttleDeadZone: 0.01
+  throttleDeadZone: 0.005
   minimumDriveTorqueRatio: 0.1
   throttleSpeedFadeKmh: 2
-  fullBrakeVelocityDamping: 0.98
-  maxSteerAngle: 60
+  maxSteerAngle: 40
   minSteerAngle: 6
   steerSpeed: 80
-  fullSteerSpeedThreshold: 22
+  fullSteerSpeedThreshold: 25
   gearShiftInputThreshold: 0.5
-  gearShiftMaxSpeedMetersPerSecond: 0.05
+  gearShiftMaxSpeedMetersPerSecond: 0.3
   automaticShiftDurationSeconds: 0.35
   maxReverseSpeedKmh: 20
-  centerOfMassOffset: {x: 0, y: -0.7, z: 0}
+  centerOfMassOffset: {x: 0, y: 0.45, z: 0}
   systems: {fileID: 2806385371440590671}
   excelAction: {fileID: 6879190352543350516, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   brakeAction: {fileID: -6609865747931013289, guid: 052faaac586de48259a63d0c4782560b, type: 3}

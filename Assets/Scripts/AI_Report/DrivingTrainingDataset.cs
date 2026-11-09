@@ -19,7 +19,8 @@ public sealed class DrivingTrainingDatasetResult
 }
 
 // Builds unlabeled section records of the AI project's data contract v1 (one JSON object per line, T x F features).
-// Labels and split are assigned offline by reviewers, so only features and run metadata are written here.
+// Labels (from the session's official deductions) and split are assigned offline by the AI project's
+// src/deduction_labels.py, so only features and run metadata are written here.
 public static class DrivingTrainingDataset
 {
 	public const int SchemaVersion = 1;

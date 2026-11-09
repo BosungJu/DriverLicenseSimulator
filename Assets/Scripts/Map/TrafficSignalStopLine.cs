@@ -50,8 +50,14 @@ public class TrafficSignalStopLine : MonoBehaviour
 		overlapCounts.Clear();
 	}
 
+	// 정지선 통과는 차체 기준으로 판정한다. 타이어 접지 센서(T자 검지선 전용)는 바퀴마다 따로 통과로 잡히므로 무시한다
 	private void OnTriggerEnter(Collider other)
 	{
+		if (TireContactSensor.IsTireSensor(other))
+		{
+			return;
+		}
+
 		GameObject crossingObject = GetCrossingObject(other);
 		overlapCounts.TryGetValue(crossingObject, out int overlapCount);
 		overlapCounts[crossingObject] = overlapCount + 1;
@@ -67,6 +73,11 @@ public class TrafficSignalStopLine : MonoBehaviour
 
 	private void OnTriggerExit(Collider other)
 	{
+		if (TireContactSensor.IsTireSensor(other))
+		{
+			return;
+		}
+
 		GameObject crossingObject = GetCrossingObject(other);
 		if (!overlapCounts.TryGetValue(crossingObject, out int overlapCount))
 		{

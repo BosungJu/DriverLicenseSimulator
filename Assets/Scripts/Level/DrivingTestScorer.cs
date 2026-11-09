@@ -43,6 +43,8 @@ public class DrivingTestScorer : MonoBehaviour
 	private DrivingStartInstruction notifiedStartInstruction = DrivingStartInstruction.None;
 
 	public DrivingScoreSheet ScoreSheet => evaluator.ScoreSheet;
+	// Read-only use: ReportManager derives section traits with the same settings the judges use.
+	public DrivingScoringSettings ScoringSettings => scoringSettings;
 	// None before Awake creates the evaluator, so listeners can read it while enabling.
 	public DrivingStartInstruction CurrentStartInstruction =>
 		evaluator != null ? evaluator.CurrentStartInstruction : DrivingStartInstruction.None;
