@@ -686,7 +686,7 @@
                 {
                     "name": "negative",
                     "id": "a130cc5c-21eb-45d8-8c30-eb7d53e951bb",
-                    "path": "<Gamepad>/rightShoulder",
+                    "path": "<Gamepad>/leftShoulder",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
@@ -697,7 +697,7 @@
                 {
                     "name": "positive",
                     "id": "17fc0a2f-91fc-4e73-aafa-beea39bb9487",
-                    "path": "<Gamepad>/leftShoulder",
+                    "path": "<Gamepad>/rightShoulder",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
@@ -742,7 +742,7 @@
                     "name": "",
                     "id": "778c4288-a042-4a91-bbac-7cc98f2dc734",
                     "path": "<Gamepad>/dpad/right",
-                    "interactions": "",
+                    "interactions": "Tap",
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "RightSignal",

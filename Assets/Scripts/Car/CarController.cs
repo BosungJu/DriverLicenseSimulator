@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// P → R → N → D 순서 (LB를 누르면 D 쪽, RB를 누르면 P 쪽으로 한 칸)
+// P → R → N → D 순서 (RB를 누르면 D 쪽, LB를 누르면 P 쪽으로 한 칸. 계기판의 P R N D 좌우 배치와 같다)
 public enum VehicleGear
 {
     Park,
@@ -12,6 +12,8 @@ public enum VehicleGear
 
 public class CarController : MonoBehaviour
 {
+    const float MetersPerSecondToKmh = 3.6f;
+
     [Header("Wheel Colliders")]
     public WheelCollider frontLeftCollider;
     public WheelCollider frontRightCollider;
@@ -25,10 +27,12 @@ public class CarController : MonoBehaviour
     public Transform rearRightWheel;
 
     [Header("Car Settings")]
-    [Tooltip("가속 페달을 끝까지 밟았을 때 뒷바퀴에 거는 최대 구동 토크")]
+    [Tooltip("가속 페달을 끝까지 밟았을 때 앞바퀴(구동축, 전륜구동)에 거는 바퀴당 최대 구동 토크")]
     public float motorForce = 1500f;
-    [Tooltip("브레이크 페달을 끝까지 밟았을 때의 제동 토크. P 기어와 주차 브레이크도 이 값으로 뒷바퀴를 잡는다")]
-    public float brakeForce = 12000f;
+    [Tooltip("브레이크 페달을 끝까지 밟았을 때 앞바퀴 하나의 제동 토크. 타이어 접지 한계를 넘으면 바퀴가 잠겨 오히려 제동거리가 늘어난다. P 기어는 앞바퀴, 주차 브레이크는 뒷바퀴를 이 값으로 잡는다")]
+    public float brakeForce = 1000f;
+    [Tooltip("페달 제동 시 뒷바퀴 토크 비율(brakeForce 기준). 감속 중에는 하중이 앞으로 쏠려 뒷바퀴가 먼저 잠기고 차가 돌 수 있으므로 앞바퀴보다 약하게 준다")]
+    [SerializeField, Range(0f, 1f)] float rearBrakeTorqueRatio = 0.6f;
     [Tooltip("초당 토크 증가량 (가속 페달을 밟을 때)")]
     public float accelRate = 1200f;
     [Tooltip("초당 토크 감소량 (가속 페달을 뗄 때)")]
@@ -43,12 +47,20 @@ public class CarController : MonoBehaviour
     [SerializeField, Range(0f, 1f)] float minimumDriveTorqueRatio = 0.3f;
     [Tooltip("전진/후진 최고 속도에 이만큼(km/h) 가까워지면 구동 토크를 서서히 줄인다")]
     [SerializeField, Min(0.1f)] float throttleSpeedFadeKmh = 2f;
-    [Tooltip("브레이크를 끝까지 밟았을 때 물리 스텝마다 속도에 곱하는 비율. 작을수록 빨리 선다 (1이면 추가 감속 없음)")]
-    [SerializeField, Range(0.9f, 1f)] float fullBrakeVelocityDamping = 0.98f;
+
+    [Header("Creep & Engine Braking")]
+    [Tooltip("엑셀을 밟지 않아도 D/R에서 구동 바퀴에 거는 바퀴당 크리핑 토크. 브레이크만 떼면 차가 천천히 움직이는 자동변속기 동작")]
+    [SerializeField, Min(0f)] float creepTorque = 200f;
+    [Tooltip("크리핑으로 도달하는 최고 속도(km/h). 엔진 브레이크도 이 속도보다 빠를 때만 걸린다")]
+    [SerializeField, Min(0f)] float creepSpeedKmh = 5f;
+    [Tooltip("크리핑 최고 속도에 이만큼(km/h) 가까워지면 크리핑 토크를 서서히 줄인다")]
+    [SerializeField, Min(0.1f)] float creepSpeedFadeKmh = 2f;
+    [Tooltip("엑셀을 뗐을 때 크리핑 속도보다 빠르면 구동 바퀴에 거는 바퀴당 엔진 브레이크 토크")]
+    [SerializeField, Min(0f)] float engineBrakeTorque = 150f;
 
     [Header("Steering Settings")]
-    [Tooltip("저속에서의 최대 조향각 (도)")]
-    public float maxSteerAngle = 32f;
+    [Tooltip("저속에서의 최대 조향각 (도). 앞축 중앙 기준 값이며, 애커만 조향으로 안쪽 바퀴는 더, 바깥 바퀴는 덜 꺾인다. 실차는 35~40° 정도")]
+    public float maxSteerAngle = 38f;
     [Tooltip("고속에서의 최소 조향각 (도)")]
     public float minSteerAngle = 6f;
     [Tooltip("핸들 회전 속도 (초당 각도)")]
@@ -59,8 +71,14 @@ public class CarController : MonoBehaviour
     [Header("Gear Settings")]
     [Tooltip("기어 버튼이 눌렸다고 판단할 최소 입력값")]
     [SerializeField, Range(0.1f, 1f)] float gearShiftInputThreshold = 0.5f;
-    [Tooltip("이 속도(m/s) 이하일 때만 변속을 허용한다. 물리 연산의 미세한 움직임은 정지로 간주하기 위한 값")]
-    [SerializeField, Min(0f)] float gearShiftMaxSpeedMetersPerSecond = 0.05f;
+    [Tooltip("이 수평 속도(m/s) 이하면 정지로 본다. P/R이 걸린 변속과 주차 브레이크 완전 고정의 기준. 서스펜션 출렁임(수직 속도)은 포함하지 않는다")]
+    [SerializeField, Min(0f)] float gearShiftMaxSpeedMetersPerSecond = 0.3f;
+    [Tooltip("P에서 다른 기어로 뺄 때 필요한 최소 브레이크 입력 (실차의 시프트 록)")]
+    [SerializeField, Range(0.01f, 1f)] float shiftLockBrakeThreshold = 0.1f;
+
+    [Header("Parking Brake")]
+    [Tooltip("주행 중 주차 브레이크를 켰을 때 뒷바퀴에 거는 토크 비율(brakeForce 기준). 한 번에 잠그면 차가 돌 수 있으므로 정지할 때까지는 일부만 건다")]
+    [SerializeField, Range(0f, 1f)] float movingParkingBrakeTorqueRatio = 0.5f;
 
     [Header("Automatic Transmission")]
     [Tooltip("D에서 1~4단 자동변속에 걸리는 시간(초). 변속 중에는 구동 토크가 줄어든다")]
@@ -69,8 +87,8 @@ public class CarController : MonoBehaviour
     [SerializeField, Min(0f)] float maxReverseSpeedKmh = 20f;
 
     [Header("Physics")]
-    [Tooltip("Rigidbody 기준 무게중심 위치(로컬 좌표). 낮을수록 잘 전복되지 않는다. 플레이 중 바꾸면 바로 적용된다")]
-    [SerializeField] Vector3 centerOfMassOffset = new Vector3(0f, -0.7f, 0f);
+    [Tooltip("Rigidbody 기준 무게중심 위치(로컬 좌표). 차량 원점은 지면 근처이므로 y는 실차처럼 지면 위(약 0.4~0.55m)로 둔다. 플레이 중 바꾸면 바로 적용된다")]
+    [SerializeField] Vector3 centerOfMassOffset = new Vector3(0f, 0.45f, 0f);
 
     [Header("Systems")]
     public VehicleSystems systems;
@@ -78,14 +96,17 @@ public class CarController : MonoBehaviour
     [Header("Input System 입력")]
     public InputActionReference excelAction; // 가속 페달 (Axis, 0 ~ 1)
     public InputActionReference brakeAction; // 브레이크 페달 (Axis, 0 ~ 1)
-    public InputActionReference gearAction; // 기어 (1D Axis: LB = 1, RB = -1)
+    public InputActionReference gearAction; // 기어 (1D Axis: RB = 1, LB = -1)
     public InputActionReference parkingBrakeAction; // 주차 브레이크 (Button, 토글. Hold 등 Interaction 반영)
     public GyroScope gyroScope; // 핸들 (-1 ~ 1). 조향은 항상 GyroScope가 가공한 값만 사용. 비어 있으면 같은 오브젝트에서 찾는다
 
     CarMoveInput moveInput = new CarMoveInput();
 
-    float currentSteerAngle; // 현재 적용 중인 조향각
+    float currentSteerAngle; // 현재 적용 중인 조향각 (앞축 중앙 기준)
+    float wheelBaseMeters; // 앞뒤 차축 거리. 애커만 조향 계산용 (Start에서 휠 콜라이더 위치로 계산)
+    float halfTrackMeters; // 앞바퀴 좌우 간격의 절반
     float currentMotor; // 현재 적용 중인 모터 토크
+    float currentEngineBrakeTorque; // 이번 물리 스텝에 구동 바퀴에 더할 엔진 브레이크 토크
     private readonly AutomaticTransmission automaticTransmission = new AutomaticTransmission();
 
     VehicleGear currentGear = VehicleGear.Park;
@@ -98,11 +119,14 @@ public class CarController : MonoBehaviour
     public int CurrentForwardGear => currentGear == VehicleGear.Drive ? automaticTransmission.CurrentGear : 0;
     public bool IsAutomaticShifting => currentGear == VehicleGear.Drive && automaticTransmission.IsShifting;
     public bool ParkingBrakeOn => parkingBrakeOn;
-    public float SteeringInput => moveInput.Steering; // 깜빡이 자동취소 등에서 읽기용
+    public float SteeringInput => moveInput.Steering; // 깜빡이 자동취소, 핸들 비주얼 등에서 읽기용
     public float ThrottleInput => moveInput.Throttle; // AI 리포트 기록용 (0 ~ 1)
     public float BrakeInput => moveInput.Brake; // AI 리포트 기록용 (0 ~ 1)
     public bool HasInputSample { get; private set; } // 입력을 한 번이라도 읽었는지
     public float InputSampleFixedTime { get; private set; } // 마지막으로 입력을 읽은 물리 스텝 시각
+    public VehicleGear LastRejectedGear { get; private set; } // 마지막으로 거부된 변속의 목표 기어 (계기판 표시용)
+    public float LastGearShiftRejectedTime { get; private set; } = float.NegativeInfinity; // 마지막 변속 거부 시각 (Time.time)
+    public bool IsVehicleStopped => rb == null || IsStopped(); // 시동 끄기 허용 판단 등에서 읽기용. 물리 초기화 전에는 정지로 본다
 
     void OnEnable()
     {
@@ -127,7 +151,37 @@ public class CarController : MonoBehaviour
             TryGetComponent(out gyroScope);
         }
 
+        MeasureWheelGeometry();
+
+        CreateTireContactSensors();
+
         WarnMissingDriveActions();
+    }
+
+    // 휠 콜라이더 위치로 휠베이스와 윤거를 구한다. 모델이 바뀌어도 애커만 조향이 실제 바퀴 배치를 따르도록 하기 위함
+    void MeasureWheelGeometry()
+    {
+        Vector3 frontLeftLocal = transform.InverseTransformPoint(frontLeftCollider.transform.position);
+        Vector3 frontRightLocal = transform.InverseTransformPoint(frontRightCollider.transform.position);
+        Vector3 rearLeftLocal = transform.InverseTransformPoint(rearLeftCollider.transform.position);
+        Vector3 rearRightLocal = transform.InverseTransformPoint(rearRightCollider.transform.position);
+
+        float frontAxleZ = (frontLeftLocal.z + frontRightLocal.z) * 0.5f;
+        float rearAxleZ = (rearLeftLocal.z + rearRightLocal.z) * 0.5f;
+
+        wheelBaseMeters = Mathf.Abs(frontAxleZ - rearAxleZ);
+        halfTrackMeters = Mathf.Abs(frontLeftLocal.x - frontRightLocal.x) * 0.5f;
+    }
+
+    // 기능시험 검지선은 타이어가 닿을 때만 감점하므로 바퀴마다 접지면 센서를 둔다 (MapLayerCollisionRelay 참고)
+    void CreateTireContactSensors()
+    {
+        WheelCollider[] wheelColliders = { frontLeftCollider, frontRightCollider, rearLeftCollider, rearRightCollider };
+
+        foreach (WheelCollider wheelCollider in wheelColliders)
+        {
+            TireContactSensor.Create(wheelCollider, rb);
+        }
     }
 
     // 플레이 중 Inspector에서 무게중심을 조정하면 바로 반영한다. rb는 Start 이후에만 있다
@@ -156,7 +210,11 @@ public class CarController : MonoBehaviour
         Steer();
 
         Brake();
+    }
 
+    // Rigidbody 보간으로 차체는 렌더 프레임마다 움직이므로, 바퀴 메시도 렌더 직전에 맞춰야 차체 대비 떨리지 않는다
+    void LateUpdate()
+    {
         UpdateWheels();
     }
 
@@ -206,13 +264,18 @@ public class CarController : MonoBehaviour
         return reference != null && reference.action != null;
     }
 
+    static float ReadPedalInput(InputActionReference pedalAction)
+    {
+        return HasAction(pedalAction) ? Mathf.Clamp01(pedalAction.action.ReadValue<float>()) : 0f;
+    }
+
     void GetInput()
     {
         moveInput.Steering = ReadSteeringInput();
 
-        moveInput.Throttle = HasAction(excelAction) ? Mathf.Clamp01(excelAction.action.ReadValue<float>()) : 0f;
+        moveInput.Throttle = ReadPedalInput(excelAction);
 
-        moveInput.Brake = HasAction(brakeAction) ? Mathf.Clamp01(brakeAction.action.ReadValue<float>()) : 0f;
+        moveInput.Brake = ReadPedalInput(brakeAction);
 
         InputSampleFixedTime = Time.fixedTime;
         HasInputSample = true;
@@ -227,6 +290,17 @@ public class CarController : MonoBehaviour
         }
 
         return gyroScope.SteeringInput;
+    }
+
+    // 서스펜션 출렁임으로 생기는 수직 속도는 빼고, 노면을 따라 움직이는 속도만 본다
+    float GetHorizontalSpeedMetersPerSecond()
+    {
+        return Vector3.ProjectOnPlane(rb.linearVelocity, transform.up).magnitude;
+    }
+
+    bool IsStopped()
+    {
+        return GetHorizontalSpeedMetersPerSecond() <= gearShiftMaxSpeedMetersPerSecond;
     }
 
     void HandleGearInput()
@@ -251,7 +325,7 @@ public class CarController : MonoBehaviour
         ShiftGear(shiftDirection);
     }
 
-    // LB = 1 (D 쪽), RB = -1 (P 쪽), 중립 또는 동시 입력 = 0
+    // RB = 1 (D 쪽), LB = -1 (P 쪽), 중립 또는 동시 입력 = 0
     int ReadGearShiftDirection()
     {
         if (!HasAction(gearAction))
@@ -299,17 +373,21 @@ public class CarController : MonoBehaviour
             return;
         }
 
-        if (rb.linearVelocity.sqrMagnitude > gearShiftMaxSpeedMetersPerSecond * gearShiftMaxSpeedMetersPerSecond)
-        {
-            Debug.Log("[CarController] Gear shift rejected: stop the vehicle before shifting.", this);
-            return;
-        }
-
         int nextGearIndex = Mathf.Clamp((int)currentGear + shiftDirection, (int)VehicleGear.Park, (int)VehicleGear.Drive);
         VehicleGear nextGear = (VehicleGear)nextGearIndex;
 
         if (nextGear == currentGear)
         {
+            return;
+        }
+
+        string rejectionReason = GetGearShiftRejectionReason(nextGear);
+        if (rejectionReason != null)
+        {
+            LastRejectedGear = nextGear;
+            LastGearShiftRejectedTime = Time.time;
+
+            Debug.Log($"[CarController] Gear shift {currentGear} -> {nextGear} rejected: {rejectionReason}", this);
             return;
         }
 
@@ -320,6 +398,30 @@ public class CarController : MonoBehaviour
         ResetDriveTorque();
 
         Debug.Log($"[CarController] Gear shifted: {currentGear}", this);
+    }
+
+    // 실차 자동변속기 기준: D↔N은 주행 중에도 가능하고, P/R이 걸린 변속은 정지 상태에서만, P에서 뺄 때는 브레이크를 밟아야 한다.
+    // 변속할 수 있으면 null을 반환한다
+    string GetGearShiftRejectionReason(VehicleGear nextGear)
+    {
+        bool involvesParkOrReverse = IsParkOrReverse(currentGear) || IsParkOrReverse(nextGear);
+        if (involvesParkOrReverse && !IsStopped())
+        {
+            return "stop the vehicle before shifting into or out of P/R.";
+        }
+
+        bool isLeavingPark = currentGear == VehicleGear.Park;
+        if (isLeavingPark && ReadPedalInput(brakeAction) < shiftLockBrakeThreshold)
+        {
+            return "press the brake pedal to shift out of P.";
+        }
+
+        return null;
+    }
+
+    static bool IsParkOrReverse(VehicleGear gear)
+    {
+        return gear == VehicleGear.Park || gear == VehicleGear.Reverse;
     }
 
     void HandleParkingBrakeInput()
@@ -352,6 +454,7 @@ public class CarController : MonoBehaviour
     void Move()
     {
         float gearTorqueDirection = GetGearTorqueDirection();
+        currentEngineBrakeTorque = 0f;
 
         // 시동 OFF, P/N 또는 주차 브레이크 작동 중에는 구동 토크를 즉시 차단한다.
         if (systems == null || !systems.EngineOn || gearTorqueDirection == 0f || parkingBrakeOn)
@@ -361,8 +464,8 @@ public class CarController : MonoBehaviour
             return;
         }
 
-        // 선택한 기어 방향으로의 속도. D에서 뒤로 밀리면 음수가 되어 토크가 줄지 않으므로 엑셀로 밀림을 막을 수 있다
-        float gearDirectionSpeedKmh = Vector3.Dot(rb.linearVelocity, transform.forward) * gearTorqueDirection * 3.6f;
+        // 선택한 기어 방향으로의 속도. D에서 뒤로 밀리면 음수가 되어 토크가 줄지 않으므로 엑셀/크리핑으로 밀림을 막을 수 있다
+        float gearDirectionSpeedKmh = Vector3.Dot(rb.linearVelocity, transform.forward) * gearTorqueDirection * MetersPerSecondToKmh;
         if (currentGear == VehicleGear.Drive)
         {
             automaticTransmission.Tick(gearDirectionSpeedKmh, maxSpeedKmh,
@@ -373,28 +476,53 @@ public class CarController : MonoBehaviour
             automaticTransmission.Reset();
         }
 
-        float targetMotor = CalculateDriveTorque(moveInput.Throttle, gearDirectionSpeedKmh) * gearTorqueDirection;
+        float creepTorqueMagnitude = CalculateCreepTorque(gearDirectionSpeedKmh);
+        float targetMotorMagnitude;
+        if (IsThrottleApplied(moveInput.Throttle))
+        {
+            // 약한 엑셀 토크가 크리핑보다 작으면 엑셀을 밟는 순간 힘이 빠지므로 크리핑을 하한으로 둔다
+            targetMotorMagnitude = Mathf.Max(CalculateDriveTorque(moveInput.Throttle, gearDirectionSpeedKmh), creepTorqueMagnitude);
+        }
+        else
+        {
+            // 엑셀을 떼면 저속에서는 크리핑, 그보다 빠르면 엔진 브레이크로 감속한다
+            targetMotorMagnitude = creepTorqueMagnitude;
+            currentEngineBrakeTorque = gearDirectionSpeedKmh > creepSpeedKmh ? engineBrakeTorque : 0f;
+        }
+
+        float targetMotor = targetMotorMagnitude * gearTorqueDirection;
 
         // 목표 토크가 커지면 accelRate, 작아지면 releaseRate 적용
         float rate = Mathf.Abs(targetMotor) > Mathf.Abs(currentMotor) ? accelRate : releaseRate;
 
         currentMotor = Mathf.MoveTowards(currentMotor, targetMotor, rate * Time.fixedDeltaTime);
 
-        rearLeftCollider.motorTorque = currentMotor;
-        rearRightCollider.motorTorque = currentMotor;
+        ApplyDriveTorque(currentMotor);
+    }
+
+    bool IsThrottleApplied(float throttle)
+    {
+        return throttle > 0f && throttle >= throttleDeadZone;
+    }
+
+    // 쏘나타는 전륜구동이므로 앞바퀴에 구동 토크를 건다
+    void ApplyDriveTorque(float motorTorque)
+    {
+        if (frontLeftCollider != null)
+        {
+            frontLeftCollider.motorTorque = motorTorque;
+        }
+        if (frontRightCollider != null)
+        {
+            frontRightCollider.motorTorque = motorTorque;
+        }
     }
 
     void ResetDriveTorque()
     {
         currentMotor = 0f;
-        if (rearLeftCollider != null)
-        {
-            rearLeftCollider.motorTorque = 0f;
-        }
-        if (rearRightCollider != null)
-        {
-            rearRightCollider.motorTorque = 0f;
-        }
+        currentEngineBrakeTorque = 0f;
+        ApplyDriveTorque(0f);
     }
 
     // 엑셀은 구동력을 조절하고, D의 자동변속 단수는 속도로 결정한다.
@@ -403,7 +531,7 @@ public class CarController : MonoBehaviour
     float CalculateDriveTorque(float throttle, float gearDirectionSpeedKmh)
     {
         float speedLimitKmh = currentGear == VehicleGear.Reverse ? maxReverseSpeedKmh : maxSpeedKmh;
-        if (throttle <= 0f || throttle < throttleDeadZone || speedLimitKmh <= 0f)
+        if (speedLimitKmh <= 0f)
         {
             return 0f;
         }
@@ -414,6 +542,14 @@ public class CarController : MonoBehaviour
         float gearTorqueRatio = currentGear == VehicleGear.Drive ? automaticTransmission.TorqueRatio : 1f;
 
         return motorForce * throttleTorqueRatio * gearTorqueRatio * speedFadeRatio;
+    }
+
+    // 크리핑 최고 속도에 가까워질수록 토크를 줄인다. 반대 방향으로 밀리는 중(음수 속도)에는 최대 토크로 버틴다
+    float CalculateCreepTorque(float gearDirectionSpeedKmh)
+    {
+        float creepFadeRatio = Mathf.Clamp01((creepSpeedKmh - gearDirectionSpeedKmh) / Mathf.Max(0.1f, creepSpeedFadeKmh));
+
+        return creepTorque * creepFadeRatio;
     }
 
     void Steer()
@@ -433,28 +569,61 @@ public class CarController : MonoBehaviour
             steerSpeed * Time.fixedDeltaTime
         );
 
-        frontLeftCollider.steerAngle = currentSteerAngle;
-        frontRightCollider.steerAngle = currentSteerAngle;
+        ApplyAckermannSteer(currentSteerAngle);
     }
 
+    // 안쪽 바퀴를 더 꺾어 두 앞바퀴가 같은 회전 중심을 돌게 한다.
+    // 같은 각도로 꺾으면 두 바퀴가 서로 다른 원을 그리려다 미끄러져 회전반경이 계산보다 커진다
+    void ApplyAckermannSteer(float centerSteerAngle)
+    {
+        bool canApplyAckermann = wheelBaseMeters > 0f && Mathf.Abs(centerSteerAngle) > 0.01f;
+        if (!canApplyAckermann)
+        {
+            frontLeftCollider.steerAngle = centerSteerAngle;
+            frontRightCollider.steerAngle = centerSteerAngle;
+            return;
+        }
+
+        // 뒷축 중앙 기준 회전반경. 바퀴별 각도는 이 회전 중심을 향하도록 계산한다
+        float rearAxleTurnRadius = wheelBaseMeters / Mathf.Tan(Mathf.Abs(centerSteerAngle) * Mathf.Deg2Rad);
+        float innerWheelAngle = Mathf.Atan(wheelBaseMeters / Mathf.Max(rearAxleTurnRadius - halfTrackMeters, 0.01f)) * Mathf.Rad2Deg;
+        float outerWheelAngle = Mathf.Atan(wheelBaseMeters / (rearAxleTurnRadius + halfTrackMeters)) * Mathf.Rad2Deg;
+
+        // WheelCollider는 양수 각도가 우회전이다. 우회전이면 오른쪽 바퀴가 안쪽
+        bool isTurningRight = centerSteerAngle > 0f;
+        float steerSign = Mathf.Sign(centerSteerAngle);
+
+        frontLeftCollider.steerAngle = steerSign * (isTurningRight ? outerWheelAngle : innerWheelAngle);
+        frontRightCollider.steerAngle = steerSign * (isTurningRight ? innerWheelAngle : outerWheelAngle);
+    }
+
+    // 제동은 바퀴 제동 토크로만 처리하고, 실제 감속은 타이어 마찰이 결정한다
     void Brake()
     {
         float pedalBrakeTorque = moveInput.Brake * brakeForce;
 
-        // P 기어와 주차 브레이크는 페달과 별개로 구동축(뒷바퀴)을 잡아 둔다
-        bool isHoldingRearWheels = parkingBrakeOn || currentGear == VehicleGear.Park;
-        float rearBrakeTorque = isHoldingRearWheels ? brakeForce : pedalBrakeTorque;
+        // P 기어는 변속기가 구동축(앞바퀴)을 잠그고, 엔진 브레이크도 구동축에 걸린다
+        float frontPedalBrakeTorque = pedalBrakeTorque + currentEngineBrakeTorque;
+        float frontBrakeTorque = currentGear == VehicleGear.Park ? Mathf.Max(brakeForce, frontPedalBrakeTorque) : frontPedalBrakeTorque;
 
-        frontLeftCollider.brakeTorque = pedalBrakeTorque;
-        frontRightCollider.brakeTorque = pedalBrakeTorque;
+        // 주차 브레이크는 페달과 별개로 뒷바퀴를 잡는다
+        float rearBrakeTorque = Mathf.Max(pedalBrakeTorque * rearBrakeTorqueRatio, GetParkingBrakeTorque());
+
+        frontLeftCollider.brakeTorque = frontBrakeTorque;
+        frontRightCollider.brakeTorque = frontBrakeTorque;
         rearLeftCollider.brakeTorque = rearBrakeTorque;
         rearRightCollider.brakeTorque = rearBrakeTorque;
+    }
 
-        if (moveInput.IsBraking)
+    float GetParkingBrakeTorque()
+    {
+        if (!parkingBrakeOn)
         {
-            // 밟은 정도에 비례해 감속 (끝까지 밟으면 기존과 같은 0.98)
-            rb.linearVelocity *= Mathf.Lerp(1f, fullBrakeVelocityDamping, moveInput.Brake);
+            return 0f;
         }
+
+        // 정지 상태에서는 완전히 고정하고, 주행 중에는 뒷바퀴가 잠겨 차가 돌지 않도록 일부만 건다
+        return IsStopped() ? brakeForce : brakeForce * movingParkingBrakeTorqueRatio;
     }
 
     void UpdateWheels()

@@ -43,6 +43,8 @@ public class VehicleDashboardHud : MonoBehaviour
 	private const float StatusIconSize = 28f;
 	private const int StatusIconCount = 8;
 	private const float GearLetterSpacing = 30f;
+	// 변속이 거부되면 요청한 기어 글자를 이 시간(초) 동안 주황색으로 표시한다.
+	private const float GearRejectionFlashSeconds = 0.6f;
 
 	private static readonly VehicleGear[] GearOrder = { VehicleGear.Park, VehicleGear.Reverse, VehicleGear.Neutral, VehicleGear.Drive };
 	private static readonly string[] GearLetters = { "P", "R", "N", "D" };
@@ -292,7 +294,7 @@ public class VehicleDashboardHud : MonoBehaviour
 		worldSpeed.text = speedLabel ?? "0";
 		for (int i = 0; i < GearOrder.Length; i++)
 		{
-			worldGears[i].color = carController.CurrentGear == GearOrder[i] ? ActiveBlue : InactiveColor;
+			worldGears[i].color = GetGearLetterColor(GearOrder[i]);
 		}
 
 		worldLeftSignal.color = vehicleSystems.LeftSignalVisible ? ActiveGreen : InactiveColor;
@@ -439,16 +441,28 @@ public class VehicleDashboardHud : MonoBehaviour
 	{
 		Vector2 gearCenter = GetPanelPoint(panelRect, GearPodCenter);
 		float firstLetterOffset = -GearLetterSpacing * (GearOrder.Length - 1) * 0.5f;
-		VehicleGear currentGear = carController.CurrentGear;
 
 		for (int i = 0; i < GearOrder.Length; i++)
 		{
-			bool isCurrentGear = GearOrder[i] == currentGear;
 			Vector2 letterCenter = gearCenter + new Vector2(firstLetterOffset + GearLetterSpacing * i, 0f);
 
-			GUI.color = isCurrentGear ? ActiveBlue : InactiveColor;
+			GUI.color = GetGearLetterColor(GearOrder[i]);
 			GUI.Label(GetCenteredRect(letterCenter, GearLetterSpacing, 40f), GearLetters[i], gearStyle);
 		}
+	}
+
+	// 현재 기어는 파란색, 방금 거부된 변속의 목표 기어는 잠깐 주황색으로 표시한다.
+	private Color GetGearLetterColor(VehicleGear gear)
+	{
+		if (carController.CurrentGear == gear)
+		{
+			return ActiveBlue;
+		}
+
+		bool isRecentlyRejectedGear = carController.LastRejectedGear == gear
+			&& Time.time - carController.LastGearShiftRejectedTime < GearRejectionFlashSeconds;
+
+		return isRecentlyRejectedGear ? ActiveAmber : InactiveColor;
 	}
 
 	private void DrawSignals(Rect panelRect)

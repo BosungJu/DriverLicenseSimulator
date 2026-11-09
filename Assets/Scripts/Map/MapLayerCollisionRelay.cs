@@ -83,7 +83,7 @@ public class MapLayerCollisionRelay : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (mapGenerator == null)
+        if (mapGenerator == null || !IsDetectedCollider(other))
         {
             return;
         }
@@ -98,10 +98,20 @@ public class MapLayerCollisionRelay : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        if (hasLineTriggers)
+        if (hasLineTriggers && IsDetectedCollider(other))
         {
             EndLineOverlap(other);
         }
+    }
+
+    // 기능시험 검지선(T_Test)은 실제 시험처럼 타이어 접지면만 판정하므로 차체 오버행이 선 위를 지나가는 것은 감점이 아니다.
+    // 다른 센서 레이어는 기존처럼 차체로 판정하고 타이어 센서는 무시한다.
+    private bool IsDetectedCollider(Collider other)
+    {
+        bool isTireSensor = TireContactSensor.IsTireSensor(other);
+        bool requiresTireContact = string.Equals(layerName, MapGenerator.TestLayerName, System.StringComparison.OrdinalIgnoreCase);
+
+        return requiresTireContact ? isTireSensor : !isTireSensor;
     }
 
     // Returns true only when the object starts touching this layer.
@@ -131,10 +141,10 @@ public class MapLayerCollisionRelay : MonoBehaviour
         }
     }
 
-    // Same owner rule as MapGenerator.NotifyLayerTrigger, so the body and wheel colliders of one vehicle count together.
+    // Same owner rule as MapGenerator.NotifyLayerTrigger, so all tire sensors of one vehicle count as one continuous contact.
     private static GameObject GetOverlappingObject(Collider other)
     {
-        return other.attachedRigidbody != null ? other.attachedRigidbody.gameObject : other.gameObject;
+        return TireContactSensor.GetOwnerObject(other);
     }
 
     // Remaining sensor layers use segment triggers instead of solid non-convex mesh colliders.

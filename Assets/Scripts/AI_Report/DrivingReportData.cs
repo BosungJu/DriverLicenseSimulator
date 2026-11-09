@@ -31,6 +31,10 @@ public struct DrivingSample
 	public bool IsHighBeamOn;
 	public bool IsSeatBeltOn;
 	public bool IsHornOn;
+	// Scoring rules of the current section, and whether the next route point is the finish,
+	// whose turn signal rule judges this section. Always available while a section is current.
+	public DrivingSectionTraits SectionTraits;
+	public bool IsFinishApproach;
 }
 
 // Model feature columns shared by driving_log.csv and training_sections.jsonl.
@@ -43,7 +47,9 @@ public static class DrivingFeatureColumns
 		"steering_input", "throttle_input", "brake_input",
 		"gear_park", "gear_reverse", "gear_neutral", "gear_drive", "parking_brake_on",
 		"engine_on", "left_signal_on", "right_signal_on", "hazard_on", "headlight_on", "high_beam_on",
-		"seat_belt_on", "horn_on"
+		"seat_belt_on", "horn_on",
+		"section_start", "section_acceleration", "section_emergency", "section_hill_stop", "section_signal",
+		"section_left_turn", "section_right_turn", "section_parking", "section_finish_approach"
 	};
 
 	// Appends the values in Names order, comma separated. Unavailable values stay blank so the AI side
@@ -72,7 +78,16 @@ public static class DrivingFeatureColumns
 			FormatFlag(hasSystems, sample.IsHeadlightOn),
 			FormatFlag(hasSystems, sample.IsHighBeamOn),
 			FormatFlag(hasSystems, sample.IsSeatBeltOn),
-			FormatFlag(hasSystems, sample.IsHornOn)
+			FormatFlag(hasSystems, sample.IsHornOn),
+			FormatFlag(true, sample.SectionTraits.IsStart),
+			FormatFlag(true, sample.SectionTraits.IsAcceleration),
+			FormatFlag(true, sample.SectionTraits.IsEmergency),
+			FormatFlag(true, sample.SectionTraits.IsHillStop),
+			FormatFlag(true, sample.SectionTraits.IsSignal),
+			FormatFlag(true, sample.SectionTraits.IsLeftTurn),
+			FormatFlag(true, sample.SectionTraits.IsRightTurn),
+			FormatFlag(true, sample.SectionTraits.IsParking),
+			FormatFlag(true, sample.IsFinishApproach)
 		};
 
 		builder.Append(string.Join(",", values));

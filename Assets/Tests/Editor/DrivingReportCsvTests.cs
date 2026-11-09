@@ -7,7 +7,12 @@ public class DrivingReportCsvTests
 	private const string ExpectedHeader =
 		"time_s,point_number,heading_deg,pos_x,pos_z,speed_kmh,accel_mps2,yaw_rate_dps,steering_input,throttle_input,brake_input," +
 		"gear_park,gear_reverse,gear_neutral,gear_drive,parking_brake_on," +
-		"engine_on,left_signal_on,right_signal_on,hazard_on,headlight_on,high_beam_on,seat_belt_on,horn_on";
+		"engine_on,left_signal_on,right_signal_on,hazard_on,headlight_on,high_beam_on,seat_belt_on,horn_on," +
+		"section_start,section_acceleration,section_emergency,section_hill_stop,section_signal," +
+		"section_left_turn,section_right_turn,section_parking,section_finish_approach";
+
+	// Section columns of a sample whose section turns on no scoring rule.
+	private const string SectionFlagsOff = ",0,0,0,0,0,0,0,0,0";
 
 	[TestCase(VehicleGear.Park, "1,0,0,0")]
 	[TestCase(VehicleGear.Reverse, "0,1,0,0")]
@@ -38,7 +43,7 @@ public class DrivingReportCsvTests
 			CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
 			string[] lines = DrivingReportCsv.Build(new[] { sample }).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 			Assert.AreEqual(ExpectedHeader, lines[0]);
-			Assert.AreEqual("0.020,2,90.00,10.000,20.000,4.000,-0.500,3.000,-0.250,0.500,0.750," + expectedGearColumns + ",1,,,,,,,,",
+			Assert.AreEqual("0.020,2,90.00,10.000,20.000,4.000,-0.500,3.000,-0.250,0.500,0.750," + expectedGearColumns + ",1,,,,,,,," + SectionFlagsOff,
 				lines[1]);
 		}
 		finally
@@ -67,7 +72,7 @@ public class DrivingReportCsvTests
 
 		string[] lines = DrivingReportCsv.Build(new[] { sample }).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
-		Assert.AreEqual("0.000,1,0.00,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,1,0,0,0,0,1,0,1,0,1,0,1,0", lines[1]);
+		Assert.AreEqual("0.000,1,0.00,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,1,0,0,0,0,1,0,1,0,1,0,1,0" + SectionFlagsOff, lines[1]);
 	}
 
 	[Test]
@@ -75,7 +80,28 @@ public class DrivingReportCsvTests
 	{
 		var sample = new DrivingSample { PointNumber = 1, SpeedKmh = 4f };
 		string[] lines = DrivingReportCsv.Build(new[] { sample }).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-		Assert.AreEqual("0.000,1,0.00,0.000,0.000,4.000,0.000,0.000,,,,,,,,,,,,,,,,", lines[1]);
+		Assert.AreEqual("0.000,1,0.00,0.000,0.000,4.000,0.000,0.000,,,,,,,,,,,,,,,," + SectionFlagsOff, lines[1]);
+	}
+
+	[Test]
+	public void Build_SectionTraits_ExportsSectionFlagsAfterVehicleState()
+	{
+		var sample = new DrivingSample
+		{
+			PointNumber = 3,
+			SectionTraits = DrivingSectionTraits.FromCommands(new[] { "left", "on_emergency" }, 1),
+			IsFinishApproach = true
+		};
+
+		string[] lines = DrivingReportCsv.Build(new[] { sample }).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+		// Section flags are always available, even when input and vehicle state are blank.
+		string[] headerColumns = lines[0].Split(',');
+		string[] values = lines[1].Split(',');
+		Assert.AreEqual(headerColumns.Length, values.Length);
+		Assert.AreEqual(string.Empty, values[Array.IndexOf(headerColumns, "horn_on")]);
+		int firstSectionColumn = Array.IndexOf(headerColumns, "section_start");
+		Assert.AreEqual("0,0,1,0,0,1,0,0,1", string.Join(",", values, firstSectionColumn, values.Length - firstSectionColumn));
 	}
 
 	[Test]

@@ -28,19 +28,15 @@ public class SteeringWheelVisual : MonoBehaviour
 
     void LateUpdate()
     {
-        if (carController == null ||
-            carController.frontLeftCollider == null)
+        if (carController == null)
         {
             return;
         }
 
-        // 앞바퀴 최대 조향각을 기준으로 -1~1 범위로 변환
-        float maxRoadWheelAngle =
-            Mathf.Max(carController.maxSteerAngle, 0.01f);
-
+        // 실차처럼 운전자가 돌린 만큼 핸들이 돌아가도록 조향 입력(-1~1)을 그대로 쓴다.
+        // 앞바퀴 각도는 속도에 따라 줄어들므로 기준으로 쓰면 고속에서 핸들이 거의 돌지 않는다
         float steeringRatio = Mathf.Clamp(
-            carController.frontLeftCollider.steerAngle
-                / maxRoadWheelAngle,
+            carController.SteeringInput,
             -1f,
             1f
         );
