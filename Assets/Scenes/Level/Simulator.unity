@@ -4171,6 +4171,10 @@ MonoBehaviour:
   startCourseOnPlay: 1
   restartKey: 114
   menuController: {fileID: 1093489019}
+  isSectionPracticeEnabled: 1
+  practiceStartPointNumber: 7
+  practiceSectionCount: 4
+  practiceRestartDelaySeconds: 2
 --- !u!114 &1093489018
 MonoBehaviour:
   m_ObjectHideFlags: 0

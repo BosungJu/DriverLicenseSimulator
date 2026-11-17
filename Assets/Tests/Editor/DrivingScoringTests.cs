@@ -144,6 +144,40 @@ public class DrivingScoringTests
 		Assert.That(ScoreSheet.TotalDeduction, Is.EqualTo(expectedPenalty));
 	}
 
+	// A section practice run ends by leaving the acceleration section without entering the exit point.
+	[TestCase(25f, true)]
+	[TestCase(15f, false)]
+	public void CompleteCourse_PracticeEndCrossingSpeed_JudgesAccelerationExitSpeed(float crossingSpeedKmh,
+		bool isExitTooFast)
+	{
+		Begin(13, "fast_0");
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
+		evaluator.Tick(1f, 21f);
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
+
+		evaluator.CompleteCourse(crossingSpeedKmh);
+
+		Assert.That(ScoreSheet.Deductions.Count, Is.EqualTo(isExitTooFast ? 1 : 0));
+		if (isExitTooFast)
+		{
+			Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.AccelerationExitTooFast));
+			Assert.That(ScoreSheet.Deductions[0].PointNumber, Is.EqualTo(13));
+		}
+	}
+
+	[Test]
+	public void CompleteCourse_PracticeEndWithoutCrossingSpeed_UsesLastTickAsExitSpeed()
+	{
+		Begin(13, "fast_0");
+		evaluator.Tick(1f, AccelerationBoundaryKmh);
+		evaluator.Tick(1f, 21f);
+
+		evaluator.CompleteCourse();
+
+		Assert.That(ScoreSheet.Deductions.Count, Is.EqualTo(1));
+		Assert.That(ScoreSheet.Deductions[0].Reason, Is.EqualTo(DrivingDeductionReason.AccelerationExitTooFast));
+	}
+
 	[TestCase(2.9f, 0)]
 	[TestCase(3f, 3)]
 	public void Tick_AfterAccelerationExit_EnforcesNormalSpeedLimit(float seconds, int expectedPenalty)

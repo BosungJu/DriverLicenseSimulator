@@ -143,6 +143,8 @@ public class DrivingSectionResultFile
 	public int totalDeduction;
 	public bool isPassed;
 	public bool isDisqualified;
+	// A section practice attempt covers only part of the course, so its score is not a course result.
+	public bool isSectionPractice;
 	public float recordedSeconds;
 	public float sampleRateHz;
 	public List<DrivingSectionInfo> sections = new List<DrivingSectionInfo>();

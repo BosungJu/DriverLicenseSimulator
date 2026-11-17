@@ -235,7 +235,10 @@ public class DrivingTestScorer : MonoBehaviour
 	private void HandleLevelCompleted(GameObject vehicle)
 	{
 		SyncSection();
-		evaluator.CompleteCourse();
+		// A practice run completes in the physics callback of the crossing that leaves the driven section,
+		// so the speed sampled now is that section's exit speed (e.g. the acceleration exit rule).
+		float? exitSpeedKmh = drivingTestLevel.IsPracticeRun ? SampleCrossingSpeedKmh() : null;
+		evaluator.CompleteCourse(exitSpeedKmh);
 
 		DrivingScoreSheet scoreSheet = evaluator.ScoreSheet;
 		string result = scoreSheet.IsPassed ? "PASS" : "FAIL";
