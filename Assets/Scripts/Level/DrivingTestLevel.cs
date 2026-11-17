@@ -18,9 +18,13 @@ public class DrivingTestLevel : MonoBehaviour
 {
     // CAD point numbers start at 0, so "no point entered yet" needs a distinct value.
     public const int NoCurrentPoint = -1;
+    // Practice end route index of a whole-course run, which completes at the last route point.
+    private const int NoPracticeEndRouteIndex = -1;
 
     public int PassedRoutePointCount => nextRoutePointIndex;
     public bool IsCompleted => isCompleted;
+    // True from EnterPracticeRoutePoint until the next reset; the run covers only part of the course.
+    public bool IsPracticeRun { get; private set; }
     public MapRouteSection CurrentSection { get; private set; }
     // Vehicle that entered the current section; null until the first route point is reached.
     public GameObject ActiveVehicle { get; private set; }
@@ -44,6 +48,7 @@ public class DrivingTestLevel : MonoBehaviour
     private bool isCompleted;
     private int progressVersion;
     private bool isResetting;
+    private int practiceEndRouteIndex = NoPracticeEndRouteIndex;
 
     private void Awake()
     {
@@ -132,6 +137,8 @@ public class DrivingTestLevel : MonoBehaviour
 
         nextRoutePointIndex = 0;
         isCompleted = false;
+        IsPracticeRun = false;
+        practiceEndRouteIndex = NoPracticeEndRouteIndex;
         CurrentPointNumber = NoCurrentPoint;
         ActiveVehicle = null;
         CurrentInstructions = System.Array.Empty<string>();
@@ -143,6 +150,25 @@ public class DrivingTestLevel : MonoBehaviour
     public void EnterFirstRoutePoint(GameObject vehicle)
     {
         HandleRoutePointEnter(0, vehicle);
+    }
+
+    // Starts a section practice run for a vehicle placed directly on the start route point of a freshly reset level.
+    // The run completes when the vehicle reaches endRouteIndex without entering that point, so the judges of a
+    // section that is not driven never score it. An end at or past the last route point completes there as usual.
+    public void EnterPracticeRoutePoint(int startRouteIndex, int endRouteIndex, GameObject vehicle)
+    {
+        bool isFreshLevel = CurrentSection == null && !isCompleted && nextRoutePointIndex == 0;
+        if (!isFreshLevel || startRouteIndex < 0 || endRouteIndex <= startRouteIndex)
+        {
+            Debug.LogWarning($"DrivingTestLevel: Cannot start practice from route index {startRouteIndex} to {endRouteIndex}; " +
+                "reset the level and use an end after the start.", this);
+            return;
+        }
+
+        IsPracticeRun = true;
+        practiceEndRouteIndex = endRouteIndex;
+        nextRoutePointIndex = startRouteIndex;
+        HandleRoutePointEnter(startRouteIndex, vehicle);
     }
 
     private void Update()
@@ -164,6 +190,12 @@ public class DrivingTestLevel : MonoBehaviour
         if (!string.IsNullOrEmpty(mapGenerator.RouteInstructionError)
             || routePointIndex >= mapGenerator.RouteSections.Count)
         {
+            return;
+        }
+
+        if (IsPracticeEndPoint(routePointIndex))
+        {
+            CompletePracticeRun(otherObject);
             return;
         }
 
@@ -226,6 +258,32 @@ public class DrivingTestLevel : MonoBehaviour
         }
 
         onLevelCompleted.Invoke(otherObject);
+    }
+
+    // The last route point completes every run on entry, so only an earlier practice end stops before its point.
+    private bool IsPracticeEndPoint(int routePointIndex)
+    {
+        return IsPracticeRun
+            && routePointIndex == practiceEndRouteIndex
+            && routePointIndex < mapGenerator.RouteSections.Count - 1;
+    }
+
+    // Ends the driven section like a section change, then completes the run without entering the end point.
+    private void CompletePracticeRun(GameObject vehicle)
+    {
+        int completionVersion = ++progressVersion;
+        isCompleted = true;
+        if (CurrentSection != null)
+        {
+            CurrentSection.Complete();
+            if (progressVersion != completionVersion)
+            {
+                return;
+            }
+        }
+
+        Debug.Log($"DrivingTestLevel: Practice run completed at Point {CurrentPointNumber}.", this);
+        onLevelCompleted.Invoke(vehicle);
     }
 
     public bool IsTestVehicle(GameObject otherObject)

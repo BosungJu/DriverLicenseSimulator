@@ -231,6 +231,7 @@ public class ReportManager : MonoBehaviour
 			totalDeduction = scoreSheet.TotalDeduction,
 			isPassed = scoreSheet.IsPassed,
 			isDisqualified = scoreSheet.IsDisqualified,
+			isSectionPractice = drivingTestLevel.IsPracticeRun,
 			recordedSeconds = recordedSeconds,
 			sampleRateHz = 1f / Time.fixedDeltaTime
 		};

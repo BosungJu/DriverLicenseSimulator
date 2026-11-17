@@ -146,9 +146,11 @@ public sealed class DrivingTestScoreEvaluator
 		EndSection(false, null);
 	}
 
-	public void CompleteCourse()
+	// exitSpeedKmh is the crossing speed when the run ends by leaving the current section (a section practice run),
+	// or null when it ends on entering the finish section.
+	public void CompleteCourse(float? exitSpeedKmh = null)
 	{
-		EndSection();
+		EndSection(false, exitSpeedKmh);
 		isCourseRunning = false;
 	}
 
