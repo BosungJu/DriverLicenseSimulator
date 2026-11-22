@@ -13,10 +13,13 @@ public readonly struct DrivingVehicleState
 	// Low or high beam.
 	public bool IsHeadlightOn { get; }
 	public bool IsWiperOn { get; }
+	public VehicleGear Gear { get; }
+	public bool IsHighBeamOn { get; }
 	public bool IsTurnSignalOn => IsLeftSignalOn || IsRightSignalOn;
 
 	public DrivingVehicleState(bool isSeatBeltOn, bool isEngineOn, bool isHazardOn, bool isLeftSignalOn,
-		bool isRightSignalOn, bool isParkingBrakeOn, bool isHeadlightOn = false, bool isWiperOn = false)
+		bool isRightSignalOn, bool isParkingBrakeOn, bool isHeadlightOn = false, bool isWiperOn = false,
+		VehicleGear gear = VehicleGear.Park, bool isHighBeamOn = false)
 	{
 		IsSeatBeltOn = isSeatBeltOn;
 		IsEngineOn = isEngineOn;
@@ -26,6 +29,8 @@ public readonly struct DrivingVehicleState
 		IsParkingBrakeOn = isParkingBrakeOn;
 		IsHeadlightOn = isHeadlightOn;
 		IsWiperOn = isWiperOn;
+		Gear = gear;
+		IsHighBeamOn = isHighBeamOn;
 	}
 }
 
@@ -44,6 +49,7 @@ public sealed class DrivingTestScoreEvaluator
 	private ParkingSectionJudge parkingCourseJudge;
 	// Judge of the current start section, kept so its instruction can be shown; null outside it.
 	private StartSectionJudge startJudge;
+	private readonly Random startInstructionRandom;
 
 	private bool isCourseRunning;
 	private bool hasSection;
@@ -71,9 +77,10 @@ public sealed class DrivingTestScoreEvaluator
 	public DrivingStartInstruction CurrentStartInstruction =>
 		startJudge != null ? startJudge.CurrentInstruction : DrivingStartInstruction.None;
 
-	public DrivingTestScoreEvaluator(DrivingScoringSettings settings)
+	public DrivingTestScoreEvaluator(DrivingScoringSettings settings, Random startInstructionRandom = null)
 	{
 		this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+		this.startInstructionRandom = startInstructionRandom ?? new Random();
 		ScoreSheet = new DrivingScoreSheet(settings.MaxScore, settings.PassingScore);
 		recorder = new DrivingDeductionRecorder(ScoreSheet);
 		Reset();
@@ -267,7 +274,7 @@ public sealed class DrivingTestScoreEvaluator
 	{
 		if (sectionTraits.IsStart)
 		{
-			startJudge = new StartSectionJudge(settings, recorder);
+			startJudge = new StartSectionJudge(settings, recorder, startInstructionRandom);
 			sectionJudges.Add(startJudge);
 		}
 

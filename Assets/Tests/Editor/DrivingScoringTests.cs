@@ -17,7 +17,13 @@ public class DrivingScoringTests
 	[SetUp]
 	public void SetUp()
 	{
-		evaluator = new DrivingTestScoreEvaluator(new DrivingScoringSettings());
+		// Keep legacy headlight/wiper regression cases deterministic; randomized pairs are tested separately.
+		evaluator = new DrivingTestScoreEvaluator(new DrivingScoringSettings(), new FirstCandidateRandom());
+	}
+
+	private sealed class FirstCandidateRandom : System.Random
+	{
+		public override int Next(int minValue, int maxValue) => minValue;
 	}
 
 	private DrivingScoreSheet ScoreSheet => evaluator.ScoreSheet;

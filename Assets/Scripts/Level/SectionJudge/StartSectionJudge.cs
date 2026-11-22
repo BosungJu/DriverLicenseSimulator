@@ -1,4 +1,4 @@
-// What the start section currently asks the driver to do, in instruction order.
+// Stable identifiers shared by scoring and start instruction displays.
 public enum DrivingStartInstruction
 {
 	None,
@@ -6,27 +6,48 @@ public enum DrivingStartInstruction
 	Engine,
 	Headlight,
 	Wiper,
-	Depart
+	Depart,
+	Gear,
+	TurnSignal
 }
 
-// 출발: before departing, the seat belt, the engine, the headlight, and then the wiper are instructed one at a
-// time and each must be operated within its own instruction time limit. The start line must be passed in time,
+// 출발: seat belt, engine, and two distinct randomly selected devices are instructed one at a time.
+// Each must be operated within its own instruction time limit. The start line must be passed in time,
 // and the left turn signal must be on when departing.
 // Device operation needs vehicle controls, so the instructions only advance while a vehicle state is supplied.
 public sealed class StartSectionJudge : DrivingSectionJudge
 {
+	private const int SelectedDeviceCount = 2;
+
 	private float elapsedSeconds;
 	private bool isDepartureJudged;
 	private DrivingStartInstruction currentInstruction = DrivingStartInstruction.SeatBelt;
 	private float instructionElapsedSeconds;
+	private readonly DrivingStartInstruction[] deviceInstructions;
+	private int deviceInstructionIndex;
 
 	// Nothing is asked once the vehicle has departed.
 	public DrivingStartInstruction CurrentInstruction =>
 		isDepartureJudged ? DrivingStartInstruction.None : currentInstruction;
 
-	public StartSectionJudge(DrivingScoringSettings settings, DrivingDeductionRecorder recorder)
+	public StartSectionJudge(DrivingScoringSettings settings, DrivingDeductionRecorder recorder, System.Random random = null)
 		: base(settings, recorder)
 	{
+		random = random ?? new System.Random();
+		DrivingStartInstruction[] candidates =
+		{
+			DrivingStartInstruction.Headlight, DrivingStartInstruction.Wiper,
+			DrivingStartInstruction.Gear, DrivingStartInstruction.TurnSignal
+		};
+		// Partial Fisher-Yates: draw once when this start section is created, without replacement.
+		for (int i = 0; i < SelectedDeviceCount; i++)
+		{
+			int selectedIndex = random.Next(i, candidates.Length);
+			DrivingStartInstruction previous = candidates[i];
+			candidates[i] = candidates[selectedIndex];
+			candidates[selectedIndex] = previous;
+		}
+		deviceInstructions = new[] { candidates[0], candidates[1] };
 	}
 
 	public override void Tick(float deltaSeconds, float speedKmh, float routeDistanceMeters,
@@ -46,7 +67,7 @@ public sealed class StartSectionJudge : DrivingSectionJudge
 			return;
 		}
 
-		AdvanceDeviceInstructions(deltaSeconds, vehicleState);
+		AdvanceDeviceInstructions(deltaSeconds, speedKmh, vehicleState);
 
 		// Departure is the first movement in the start section.
 		if (!IsDriving(speedKmh, vehicleState))
@@ -66,7 +87,7 @@ public sealed class StartSectionJudge : DrivingSectionJudge
 	// At most one instruction finishes per tick, so each instruction is given before the next is judged.
 	// The deadline is checked first, so a device operated after the limit is still deducted.
 	// A device already on when its instruction is given passes on that tick.
-	private void AdvanceDeviceInstructions(float deltaSeconds, DrivingVehicleState vehicleState)
+	private void AdvanceDeviceInstructions(float deltaSeconds, float speedKmh, DrivingVehicleState vehicleState)
 	{
 		if (currentInstruction == DrivingStartInstruction.Depart)
 		{
@@ -79,7 +100,8 @@ public sealed class StartSectionJudge : DrivingSectionJudge
 			DeductDeviceInstruction(currentInstruction);
 			MoveToNextInstruction();
 		}
-		else if (IsInstructionOperated(currentInstruction, vehicleState))
+		else if (IsInstructionOperated(currentInstruction, vehicleState)
+			&& (currentInstruction != DrivingStartInstruction.Gear || IsStopped(speedKmh)))
 		{
 			MoveToNextInstruction();
 		}
@@ -87,7 +109,7 @@ public sealed class StartSectionJudge : DrivingSectionJudge
 
 	// Departing before the device instructions finish leaves those devices unoperated.
 	// Departure itself needs the engine on, and driving without the seat belt is disqualified separately,
-	// so only the headlight and the wiper are deducted here.
+	// so only the selected optional devices are deducted here.
 	private void DeductUnfinishedDeviceInstructions()
 	{
 		while (currentInstruction != DrivingStartInstruction.Depart)
@@ -105,28 +127,25 @@ public sealed class StartSectionJudge : DrivingSectionJudge
 
 	private void MoveToNextInstruction()
 	{
-		currentInstruction = GetNextInstruction(currentInstruction);
+		if (currentInstruction == DrivingStartInstruction.SeatBelt)
+		{
+			currentInstruction = DrivingStartInstruction.Engine;
+		}
+		else if (deviceInstructionIndex < deviceInstructions.Length)
+		{
+			currentInstruction = deviceInstructions[deviceInstructionIndex++];
+		}
+		else
+		{
+			currentInstruction = DrivingStartInstruction.Depart;
+		}
+
 		instructionElapsedSeconds = 0f;
 	}
 
 	private void DeductDeviceInstruction(DrivingStartInstruction instruction)
 	{
 		Deduct(GetNotOperatedReason(instruction), Settings.DeviceOperationPenalty, DrivingScoringSettings.StartCommand);
-	}
-
-	private static DrivingStartInstruction GetNextInstruction(DrivingStartInstruction instruction)
-	{
-		switch (instruction)
-		{
-			case DrivingStartInstruction.SeatBelt:
-				return DrivingStartInstruction.Engine;
-			case DrivingStartInstruction.Engine:
-				return DrivingStartInstruction.Headlight;
-			case DrivingStartInstruction.Headlight:
-				return DrivingStartInstruction.Wiper;
-			default:
-				return DrivingStartInstruction.Depart;
-		}
 	}
 
 	private static DrivingDeductionReason GetNotOperatedReason(DrivingStartInstruction instruction)
@@ -139,6 +158,10 @@ public sealed class StartSectionJudge : DrivingSectionJudge
 				return DrivingDeductionReason.EngineNotStarted;
 			case DrivingStartInstruction.Headlight:
 				return DrivingDeductionReason.HeadlightNotOperated;
+			case DrivingStartInstruction.Gear:
+				return DrivingDeductionReason.GearNotOperated;
+			case DrivingStartInstruction.TurnSignal:
+				return DrivingDeductionReason.StartTurnSignalNotOperated;
 			default:
 				return DrivingDeductionReason.WiperNotOperated;
 		}
@@ -153,7 +176,11 @@ public sealed class StartSectionJudge : DrivingSectionJudge
 			case DrivingStartInstruction.Engine:
 				return vehicleState.IsEngineOn;
 			case DrivingStartInstruction.Headlight:
-				return vehicleState.IsHeadlightOn;
+				return vehicleState.IsHeadlightOn && !vehicleState.IsHighBeamOn;
+			case DrivingStartInstruction.Gear:
+				return vehicleState.Gear == VehicleGear.Neutral && vehicleState.IsParkingBrakeOn;
+			case DrivingStartInstruction.TurnSignal:
+				return vehicleState.IsLeftSignalOn && !vehicleState.IsRightSignalOn && !vehicleState.IsHazardOn;
 			case DrivingStartInstruction.Wiper:
 				return vehicleState.IsWiperOn;
 			default:

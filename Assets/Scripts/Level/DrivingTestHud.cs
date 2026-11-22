@@ -150,7 +150,11 @@ public class DrivingTestHud : MonoBehaviour
 			case DrivingStartInstruction.Engine:
 				return "Start the engine";
 			case DrivingStartInstruction.Headlight:
-				return "Turn on the headlights";
+				return "Turn on the low beams (high beams off)";
+			case DrivingStartInstruction.Gear:
+				return "Stop, hold the brake, apply the parking brake and shift to N";
+			case DrivingStartInstruction.TurnSignal:
+				return "Turn on the left signal (hazards off)";
 			case DrivingStartInstruction.Wiper:
 				return "Turn on the wipers";
 			case DrivingStartInstruction.Depart:
