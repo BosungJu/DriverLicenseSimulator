@@ -1851,6 +1851,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 68143090}
     m_Modifications:
+    - target: {fileID: 1152220018673488950, guid: 77e542e8789a7b8458c30c3c8c7f1d9c, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: 1bf28605f6d333846bc7e3932088142b, type: 3}
     - target: {fileID: 1503043639604079624, guid: 77e542e8789a7b8458c30c3c8c7f1d9c, type: 3}
       propertyPath: m_Colors.m_SelectedColor.b
       value: 0.7075472

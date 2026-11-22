@@ -39,7 +39,7 @@ public class DrivingScoringSettings
 	[SerializeField] private float startTimeLimitSeconds = 30f;
 
 	[Header("기기조작")]
-	[Tooltip("The seat belt, engine, headlight, and then wiper are instructed one at a time in the start section; each must be operated within this time.")]
+	[Tooltip("Seat belt, engine, and two randomly selected devices are instructed one at a time; each must be operated within this time.")]
 	[SerializeField] private float deviceOperationTimeLimitSeconds = 5f;
 	[Tooltip("Deducted for each device not operated in time, or not operated before departing.")]
 	[SerializeField] private int deviceOperationPenalty = 5;

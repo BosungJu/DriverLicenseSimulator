@@ -286,7 +286,7 @@ public class DrivingTestScorer : MonoBehaviour
 		bool isWiperOn = scoredVehicleWiper != null && scoredVehicleWiper.IsWiping;
 		return new DrivingVehicleState(vehicleSystems.SeatBeltOn, vehicleSystems.EngineOn, vehicleSystems.HazardOn,
 			vehicleSystems.LeftSignalOn, vehicleSystems.RightSignalOn, vehicleController.ParkingBrakeOn,
-			isHeadlightOn, isWiperOn);
+			isHeadlightOn, isWiperOn, vehicleController.CurrentGear, vehicleSystems.HighBeamOn);
 	}
 
 	// Looked up once per vehicle Rigidbody rather than every frame.

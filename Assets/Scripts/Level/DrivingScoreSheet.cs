@@ -34,7 +34,9 @@ public enum DrivingDeductionReason
 	HeadlightNotOperated,
 	WiperNotOperated,
 	SeatBeltNotFastened,
-	EngineNotStarted
+	EngineNotStarted,
+	GearNotOperated,
+	StartTurnSignalNotOperated
 }
 
 public sealed class DrivingDeduction

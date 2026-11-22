@@ -84,6 +84,10 @@ public class GuidePopup : MonoBehaviour
 	[TextArea]
 	[SerializeField] private string wiperGuideMessage = "5초 안에 와이퍼를 작동하세요.";
 	[TextArea]
+	[SerializeField] private string gearGuideMessage = "5초 안에 정차 상태에서 주차 브레이크를 채우고\n브레이크 페달을 밟은 채 기어를 N(중립)으로 바꾸세요.";
+	[TextArea]
+	[SerializeField] private string turnSignalGuideMessage = "5초 안에 비상등을 끄고 좌측 방향지시등을 켜세요.";
+	[TextArea]
 	[SerializeField] private string departGuideMessage = "좌측 방향지시등을 켜고 출발하세요.";
 
 	private MapGenerator mapGenerator;
@@ -201,6 +205,12 @@ public class GuidePopup : MonoBehaviour
 	private void HandleStartInstructionChanged(DrivingStartInstruction instruction)
 	{
 		string message = GetStartInstructionMessage(instruction);
+		if (drivingTestScorer != null)
+		{
+			// Preserve existing serialized messages while displaying the actual scoring deadline.
+			string limitSeconds = drivingTestScorer.ScoringSettings.DeviceOperationTimeLimitSeconds.ToString("0.##");
+			message = message.Replace("5초", limitSeconds + "초");
+		}
 		if (string.IsNullOrEmpty(message))
 		{
 			// 출발했거나 출발 구간이 끝났으면 다른 구간 안내는 두고 출발 지시만 닫는다
@@ -231,11 +241,15 @@ public class GuidePopup : MonoBehaviour
 			case DrivingStartInstruction.Engine:
 				return engineGuideMessage;
 			case DrivingStartInstruction.Headlight:
-				return headlightGuideMessage;
+				return headlightGuideMessage + "\n하향등을 켜고 상향등은 끄세요.";
+			case DrivingStartInstruction.Gear:
+				return gearGuideMessage;
+			case DrivingStartInstruction.TurnSignal:
+				return turnSignalGuideMessage;
 			case DrivingStartInstruction.Wiper:
 				return wiperGuideMessage;
 			case DrivingStartInstruction.Depart:
-				return departGuideMessage;
+				return departGuideMessage + "\n브레이크를 밟고 D로 변속한 뒤 주차 브레이크를 푸세요.";
 			default:
 				return string.Empty;
 		}
