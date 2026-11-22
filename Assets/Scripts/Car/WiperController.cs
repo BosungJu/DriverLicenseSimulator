@@ -68,9 +68,11 @@ public class WiperController : MonoBehaviour
 
 		isWiping = false;
 		phase = 0f;
-		if (hasStarted)
+		// Animator evaluation belongs to OnEnable, after the hierarchy is active again.
+		// Direct rotation can still restore its park pose while being disabled.
+		if (hasStarted && wiperAnimator == null)
 		{
-			ApplyPose(evaluateAnimatorImmediately: true);
+			ApplyPose();
 		}
 	}
 

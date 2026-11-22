@@ -126,13 +126,67 @@ public class WiperControllerTests
 		CapturePark();
 		controller.SetWiping(true);
 		yield return Frames(5);
+		Quaternion leftBeforeDisable = leftPivot.localRotation;
+		Quaternion rightBeforeDisable = rightPivot.localRotation;
 		controller.enabled = false;
 		Assert.IsFalse(controller.IsWiping);
-		AssertParked();
 		yield return Frames(3);
-		AssertParked();
+		Assert.Less(Quaternion.Angle(leftBeforeDisable, leftPivot.localRotation), 0.1f);
+		Assert.Less(Quaternion.Angle(rightBeforeDisable, rightPivot.localRotation), 0.1f);
 		controller.enabled = true;
+		AssertParked();
 		yield return Frames(3);
+		Assert.IsFalse(controller.IsWiping);
+		AssertParked();
+	}
+
+	[UnityTest]
+	public IEnumerator AnimatorMode_InactiveHierarchy_ResetsAtParkOnEnableAndCanWipeAgain()
+	{
+		CreateAnimatorVehicle();
+		vehicle.SetActive(true);
+		yield return null;
+		CapturePark();
+		controller.SetWiping(true);
+		yield return Frames(5);
+		Assert.Greater(Quaternion.Angle(leftPark, leftPivot.localRotation), 5f);
+
+		vehicle.SetActive(false);
+		Assert.IsFalse(controller.IsWiping);
+		Assert.IsFalse(animator.isActiveAndEnabled);
+		LogAssert.NoUnexpectedReceived();
+		vehicle.SetActive(true);
+		yield return Frames(2);
+		Assert.IsFalse(controller.IsWiping);
+		AssertParked();
+
+		controller.SetWiping(true);
+		yield return Frames(5);
+		Assert.IsTrue(controller.IsWiping);
+		Assert.Greater(Quaternion.Angle(leftPark, leftPivot.localRotation), 5f);
+		controller.SetWiping(false);
+		yield return Frames(25);
+		AssertParked();
+		LogAssert.NoUnexpectedReceived();
+	}
+
+	[UnityTest]
+	public IEnumerator AnimatorMode_AnimatorDisabledBeforeController_DoesNotEvaluateDuringDisable()
+	{
+		CreateAnimatorVehicle();
+		vehicle.SetActive(true);
+		yield return null;
+		CapturePark();
+		controller.SetWiping(true);
+		yield return Frames(5);
+
+		animator.enabled = false;
+		controller.enabled = false;
+		Assert.IsFalse(controller.IsWiping);
+		LogAssert.NoUnexpectedReceived();
+		animator.enabled = true;
+		controller.enabled = true;
+		yield return Frames(2);
 		Assert.IsFalse(controller.IsWiping);
 		AssertParked();
 	}
@@ -241,6 +295,14 @@ public class WiperControllerTests
 		yield return Frames(5);
 		Assert.Greater(Quaternion.Angle(leftPark, leftPivot.localRotation), 5f);
 		Assert.Greater(Quaternion.Angle(rightPark, rightPivot.localRotation), 5f);
+		controller.enabled = false;
+		Assert.IsFalse(controller.IsWiping);
+		AssertParked();
+		controller.enabled = true;
+		yield return Frames(2);
+		AssertParked();
+		controller.SetWiping(true);
+		yield return Frames(5);
 		controller.SetWiping(false);
 		yield return Frames(25);
 		AssertParked();
