@@ -24,6 +24,7 @@ public class MapGenerator : MonoBehaviour
 	internal const string OutlineLayerName = "Outline";
 	internal const string CurbLayerName = "Curb";
     internal const string TestLayerName = "T_Test";
+	internal const string StoplineLayerName = "Stopline";
     private const string RoutePointLayerName = "Point";
     private const string GeneratedLineMeshName = "Generated Line Layer";
     private const string GeneratedTestMeshName = "Generated T_Test Layer";
@@ -75,6 +76,14 @@ public class MapGenerator : MonoBehaviour
     {
         onRoutePointEnter.RemoveListener(listener);
     }
+
+	// Generated layer objects are replaced when the map is regenerated, so callers look the relay up again after MapGenerated.
+	public bool TryGetLayerRelay(string layerName, out MapLayerCollisionRelay layerRelay)
+	{
+		layerRelay = null;
+		Transform layerChild = transform.Find(GetLayerChildName(layerName));
+		return layerChild != null && layerChild.TryGetComponent(out layerRelay);
+	}
 
     [Header("Corner Settings")]
     [SerializeField] private int circleSegments = 64; // 원호를 그릴 때 사용할 세그먼트 수

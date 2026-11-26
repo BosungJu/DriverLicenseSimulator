@@ -2507,22 +2507,48 @@ PrefabInstance:
       propertyPath: m_Name
       value: TrafficLight (2)
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 7456828595548090707, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6758899373320309976, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 706188475}
   m_SourcePrefab: {fileID: 100100000, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
 --- !u!114 &706188455 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 1100178510004829764, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
   m_PrefabInstance: {fileID: 706188454}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 706188474}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1ce6ead30703c9e43a229bf188f55832, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &706188474 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6758899373320309976, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
+  m_PrefabInstance: {fileID: 706188454}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &706188475
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 706188474}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5d15ab422aa23a42ba5299800a37a25, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  trafficLight: {fileID: 706188455}
+  mapGenerator: {fileID: 1093489015}
+  stopLineApproachPoint: {x: -5.205, y: 0, z: -8.034}
+  maxBindDistanceMeters: 3
+  approachDistanceMeters: 30
 --- !u!43 &713542227
 Mesh:
   m_ObjectHideFlags: 0
@@ -2964,22 +2990,48 @@ PrefabInstance:
       propertyPath: m_Name
       value: TrafficLight (3)
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 7456828595548090707, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6758899373320309976, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 806269588}
   m_SourcePrefab: {fileID: 100100000, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
 --- !u!114 &806269568 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 1100178510004829764, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
   m_PrefabInstance: {fileID: 806269567}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 806269587}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1ce6ead30703c9e43a229bf188f55832, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &806269587 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6758899373320309976, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
+  m_PrefabInstance: {fileID: 806269567}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &806269588
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 806269587}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5d15ab422aa23a42ba5299800a37a25, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  trafficLight: {fileID: 806269568}
+  mapGenerator: {fileID: 1093489015}
+  stopLineApproachPoint: {x: -4.945, y: 0, z: 10.637}
+  maxBindDistanceMeters: 3
+  approachDistanceMeters: 30
 --- !u!43 &875084816
 Mesh:
   m_ObjectHideFlags: 0
@@ -4195,7 +4247,11 @@ MonoBehaviour:
   drivingTestLevel: {fileID: 1093489014}
   mapGenerator: {fileID: 1093489015}
   vehicleRigidbody: {fileID: 749956814}
-  signalStopLines: []
+  signalStopLines:
+  - {fileID: 1543977375}
+  - {fileID: 806269588}
+  - {fileID: 706188475}
+  - {fileID: 1996410632}
   scoringSettings:
     maxScore: 100
     passingScore: 80
@@ -5373,22 +5429,48 @@ PrefabInstance:
       propertyPath: m_Name
       value: TrafficLight (1)
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 7456828595548090707, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6758899373320309976, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1543977375}
   m_SourcePrefab: {fileID: 100100000, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
 --- !u!114 &1543977355 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 1100178510004829764, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
   m_PrefabInstance: {fileID: 1543977354}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1543977374}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1ce6ead30703c9e43a229bf188f55832, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &1543977374 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6758899373320309976, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
+  m_PrefabInstance: {fileID: 1543977354}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1543977375
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1543977374}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5d15ab422aa23a42ba5299800a37a25, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  trafficLight: {fileID: 1543977355}
+  mapGenerator: {fileID: 1093489015}
+  stopLineApproachPoint: {x: 4.238, y: 0, z: 1.067}
+  maxBindDistanceMeters: 3
+  approachDistanceMeters: 30
 --- !u!1 &1569888967
 GameObject:
   m_ObjectHideFlags: 0
@@ -8171,8 +8253,44 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6758899373320309976, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1996410632}
   m_SourcePrefab: {fileID: 100100000, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
+--- !u!1 &1996410631 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6758899373320309976, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
+  m_PrefabInstance: {fileID: 1996410611}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1996410632
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1996410631}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5d15ab422aa23a42ba5299800a37a25, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  trafficLight: {fileID: 1996410633}
+  mapGenerator: {fileID: 1093489015}
+  stopLineApproachPoint: {x: -14.388, y: 0, z: 1.536}
+  maxBindDistanceMeters: 3
+  approachDistanceMeters: 30
+--- !u!114 &1996410633 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1100178510004829764, guid: 49c60ad6937ff5049a16a94d85856b33, type: 3}
+  m_PrefabInstance: {fileID: 1996410611}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1996410631}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ce6ead30703c9e43a229bf188f55832, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &2022330252
 GameObject:
   m_ObjectHideFlags: 0

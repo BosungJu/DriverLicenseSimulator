@@ -16,7 +16,11 @@ public class MapLayerCollisionRelay : MonoBehaviour
 
     // Overlapping segment trigger count per object, so one continuous contact across connected segments notifies once.
     private readonly Dictionary<GameObject, int> lineOverlapCounts = new Dictionary<GameObject, int>();
+    private readonly List<BoxCollider> lineTriggers = new List<BoxCollider>();
     private bool hasLineTriggers;
+
+	// Segment trigger boxes in mesh order, created at runtime; empty in edit mode and for Line/Outline/Curb layers.
+	public IReadOnlyList<BoxCollider> LineTriggers => lineTriggers;
 
     private void Awake()
     {
@@ -208,5 +212,6 @@ public class MapLayerCollisionRelay : MonoBehaviour
         segmentTrigger.isTrigger = true;
         segmentTrigger.size = new Vector3(lineWidth, LineTriggerHeight + LineTriggerDepthBelowLine, segmentLength);
         segmentTrigger.center = new Vector3(0f, (LineTriggerHeight - LineTriggerDepthBelowLine) * 0.5f, 0f);
+        lineTriggers.Add(segmentTrigger);
     }
 }
