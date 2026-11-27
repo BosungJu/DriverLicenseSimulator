@@ -466,6 +466,7 @@ GameObject:
   m_Component:
   - component: {fileID: 131618187}
   - component: {fileID: 131618188}
+  - component: {fileID: 131618189}
   m_Layer: 0
   m_Name: ReportManager
   m_TagString: Untagged
@@ -505,6 +506,25 @@ MonoBehaviour:
   mapGenerator: {fileID: 1093489015}
   vehicleRigidbody: {fileID: 749956814}
   outputFolderName: AIReport
+--- !u!114 &131618189
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 131618186}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 31577a4287b3aac4a9abac6fda33c32f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  reportManager: {fileID: 131618188}
+  isReportGenerationEnabled: 1
+  processTimeoutSeconds: 600
+  pythonExecutablePath: C:\WorkSpace\DriveLicenseSimulatorAIModel\.venv\Scripts\python.exe
+  aiProjectRootPath: C:\WorkSpace\DriveLicenseSimulatorAIModel
+  checkpointPath: 
+  localSettings: {fileID: 11400000, guid: b4cae0d68a7134446a010d3175b52de2, type: 2}
 --- !u!1 &281757822
 GameObject:
   m_ObjectHideFlags: 0
