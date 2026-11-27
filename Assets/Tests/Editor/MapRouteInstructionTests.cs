@@ -50,8 +50,16 @@ public class MapRouteInstructionTests
 
     #region Current Map Regression
 
-	[Test]
-	public void TryParse_BongdamCsv_MapsSixteenPointsAndCompletesWithoutDeductions()
+	// The Bongdam course raises the sudden-stop event together with the left turn at this point.
+	private const int EmergencyPointIndex = 4;
+
+	// Selects the first start device candidates (headlight, then wiper) so the course replay is deterministic.
+	private sealed class FirstCandidateRandom : System.Random
+	{
+		public override int Next(int minValue, int maxValue) => minValue;
+	}
+
+	private static IReadOnlyList<MapRouteInstruction> LoadBongdamInstructions()
 	{
 		string csvPath = Path.Combine(Application.dataPath, "Resources", "MapData", "Data_Road_Bongdam_Points.csv");
 		List<MapData> mapData = CsvParaser.GetMapDataFromCsvFile(csvPath);
@@ -64,10 +72,37 @@ public class MapRouteInstructionTests
 		Assert.That(dataTexts.Count, Is.EqualTo(1));
 		Assert.That(MapRouteInstruction.TryParse(dataTexts[0].Text, points,
 			out IReadOnlyList<MapRouteInstruction> instructions, out string error), Is.True, error);
-		string[] expected = { "start", "hill_0", "hill_1", "hill_2 | left", "left", "signal", "right",
-			"T_Test_0", "T_Test_1", "T_Test_2", "T_Test_3 | left", "signal", "left", "fast_0", "fast_1", "end" };
-		var evaluator = new DrivingTestScoreEvaluator(new DrivingScoringSettings());
+		return instructions;
+	}
+
+	[Test]
+	public void BongdamCsv_EmergencyPointPassedWithoutStopping_DeductsEmergencyStopLate()
+	{
+		MapRouteInstruction emergencyInstruction = LoadBongdamInstructions()[EmergencyPointIndex];
+		var evaluator = new DrivingTestScoreEvaluator(new DrivingScoringSettings(), new FirstCandidateRandom());
 		var drivingControls = new DrivingVehicleState(true, true, false, true, true, false, true, true);
+
+		evaluator.BeginSection(EmergencyPointIndex, emergencyInstruction.Commands);
+		evaluator.Tick(1f, 10f, vehicleState: drivingControls);
+		evaluator.Tick(1f, 10f, vehicleState: drivingControls);
+		evaluator.Tick(1f, 10f, vehicleState: drivingControls);
+
+		Assert.That(evaluator.ScoreSheet.Deductions.Count, Is.EqualTo(1));
+		DrivingDeduction deduction = evaluator.ScoreSheet.Deductions[0];
+		Assert.That(deduction.Reason, Is.EqualTo(DrivingDeductionReason.EmergencyStopLate));
+		Assert.That(deduction.Points, Is.EqualTo(10));
+		Assert.That(deduction.PointNumber, Is.EqualTo(EmergencyPointIndex));
+	}
+
+	[Test]
+	public void TryParse_BongdamCsv_MapsSixteenPointsAndCompletesWithoutDeductions()
+	{
+		IReadOnlyList<MapRouteInstruction> instructions = LoadBongdamInstructions();
+		string[] expected = { "start", "hill_0", "hill_1", "hill_2 | left", "left | on_emergency", "signal", "right",
+			"T_Test_0", "T_Test_1", "T_Test_2", "T_Test_3 | left", "signal", "left", "fast_0", "fast_1", "end" };
+		var evaluator = new DrivingTestScoreEvaluator(new DrivingScoringSettings(), new FirstCandidateRandom());
+		var drivingControls = new DrivingVehicleState(true, true, false, true, true, false, true, true);
+		var hazardControls = new DrivingVehicleState(true, true, true, true, true, false, true, true);
 		var parkingControls = new DrivingVehicleState(true, true, false, false, false, true);
 
 		for (int i = 0; i < instructions.Count; i++)
@@ -77,7 +112,9 @@ public class MapRouteInstructionTests
 			evaluator.BeginSection(i, instructions[i].Commands);
 			if (i == 0)
 			{
-				// The start instructs the headlight and then the wiper, one per tick, before departing.
+				// The start instructs the seat belt, engine, headlight and then the wiper, one per tick, before departing.
+				evaluator.Tick(0.1f, 0f, vehicleState: drivingControls);
+				evaluator.Tick(0.1f, 0f, vehicleState: drivingControls);
 				evaluator.Tick(0.1f, 0f, vehicleState: drivingControls);
 				evaluator.Tick(0.1f, 0f, vehicleState: drivingControls);
 				evaluator.Tick(1f, 10f, vehicleState: drivingControls);
@@ -86,6 +123,14 @@ public class MapRouteInstructionTests
 			{
 				evaluator.Tick(0.1f, 0f);
 				evaluator.Tick(3f, 0f);
+			}
+			else if (i == EmergencyPointIndex)
+			{
+				// Stop within 2 s, turn the hazard lights on within 3 s of stopping, then off before departing.
+				evaluator.Tick(1f, 0f, vehicleState: drivingControls);
+				evaluator.Tick(1f, 0f, vehicleState: hazardControls);
+				evaluator.Tick(1f, 0f, vehicleState: drivingControls);
+				evaluator.Tick(1f, 10f, vehicleState: drivingControls);
 			}
 			else if (i == 9)
 			{

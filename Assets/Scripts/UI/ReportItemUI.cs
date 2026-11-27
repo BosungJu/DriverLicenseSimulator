@@ -33,11 +33,13 @@ public class ReportItemUI : MonoBehaviour
 		}
 	}
 
+	// statusLabel은 보고서가 아직 없거나 생성에 실패한 기록에서만 회차 옆에 표시한다.
 	public void Bind(
 		string date,
 		int attemptNumber,
 		int score,
-		Action onSelected
+		Action onSelected,
+		string statusLabel = null
 	)
 	{
 		selectedAction = null;
@@ -57,7 +59,9 @@ public class ReportItemUI : MonoBehaviour
 		}
 
 		dateText.text = date;
-		attemptText.text = $"주행 연습 {attemptNumber}회차";
+		attemptText.text = string.IsNullOrEmpty(statusLabel)
+			? $"주행 연습 {attemptNumber}회차"
+			: $"주행 연습 {attemptNumber}회차 · {statusLabel}";
 		scoreText.text = $"{score}점";
 
 		selectedAction = onSelected;

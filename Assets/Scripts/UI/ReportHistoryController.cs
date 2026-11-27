@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -8,9 +9,21 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+// 코스 전체 주행 기록을 보고서 생성 상태(완료, 생성 중, 실패)와 함께 표시한다.
+// 생성 상태는 ReportGenerationFiles가 세션 폴더의 파일에서 읽는다.
 [DisallowMultipleComponent]
 public class ReportHistoryController : MonoBehaviour
 {
+	// 생성 중인 보고서의 완료 여부를 확인하는 간격
+	private const float PendingRefreshIntervalSeconds = 3f;
+
+	private const string PendingStatusLabel = "보고서 생성 중";
+	private const string FailedStatusLabel = "보고서 생성 실패";
+	private const string PendingTitle = "보고서를 생성하고 있어요";
+	private const string PendingDescription = "완료되면 이 화면에 자동으로 표시돼요.";
+	private const string FailedTitle = "보고서를 만들지 못했어요";
+	private const string FailedDescription = "자세한 원인은 콘솔 로그에서 확인할 수 있어요.";
+
 	[Header("기록 목록")]
 	[SerializeField] private Transform historyContent;
 	[SerializeField] private ReportItemUI itemPrefab;
@@ -29,6 +42,12 @@ public class ReportHistoryController : MonoBehaviour
 	[SerializeField] private GameObject reportContent;
 	[SerializeField] private GameObject emptyBox;
 
+	[Header("보고서 상태 안내 (선택)")]
+	[Tooltip("EmptyBox의 제목. 생성 중이거나 실패한 기록을 선택하면 상태 안내로 바뀐다.")]
+	[SerializeField] private TMP_Text emptyTitleText;
+	[Tooltip("EmptyBox의 설명. 생성 중이거나 실패한 기록을 선택하면 상태 안내로 바뀐다.")]
+	[SerializeField] private TMP_Text emptyDescriptionText;
+
 	[Header("저장 폴더")]
 	[SerializeField] private string reportsFolderName = "AIReport";
 
@@ -37,6 +56,14 @@ public class ReportHistoryController : MonoBehaviour
 
 	private readonly List<ReportItemUI> createdItems =
 		new List<ReportItemUI>();
+
+	private readonly Dictionary<HistoryRecord, ReportItemUI> itemsByRecord =
+		new Dictionary<HistoryRecord, ReportItemUI>();
+
+	private Coroutine pendingRefreshCoroutine;
+	private HistoryRecord selectedRecord;
+	private string defaultEmptyTitle;
+	private string defaultEmptyDescription;
 
 	private string ReportsRootPath =>
 		Path.Combine(
@@ -49,12 +76,27 @@ public class ReportHistoryController : MonoBehaviour
 		public DateTimeOffset recordedAt;
 		public int score;
 		public int attemptNumber;
+		public string sessionDirectory;
 		public string reportPath;
+		public ReportGenerationStatus status;
+	}
+
+	private void Awake()
+	{
+		// 상태 안내 후 되돌릴 수 있도록 씬에 입력된 문구를 보관한다.
+		defaultEmptyTitle = emptyTitleText != null ? emptyTitleText.text : null;
+		defaultEmptyDescription =
+			emptyDescriptionText != null ? emptyDescriptionText.text : null;
 	}
 
 	private void Start()
 	{
 		RefreshHistory();
+	}
+
+	private void OnDisable()
+	{
+		StopPendingRefresh();
 	}
 
 	[ContextMenu("보고서 목록 새로고침")]
@@ -98,19 +140,10 @@ public class ReportHistoryController : MonoBehaviour
 
 				item.gameObject.SetActive(true);
 
-				string date = record.recordedAt.ToString(
-					"yyyy.MM.dd",
-					CultureInfo.InvariantCulture
-				);
-
-				item.Bind(
-					date,
-					record.attemptNumber,
-					record.score,
-					() => ShowReport(record)
-				);
+				BindItem(item, record);
 
 				createdItems.Add(item);
+				itemsByRecord.Add(record, item);
 			}
 
 			// 생성된 기록과 메인으로 버튼의 이동 순서를 연결한다.
@@ -119,6 +152,10 @@ public class ReportHistoryController : MonoBehaviour
             // 기록을 선택하기 전에는 EmptyBox만 표시한다.
             reportContent.SetActive(false);
             emptyBox.SetActive(true);
+            SetEmptyMessage(defaultEmptyTitle, defaultEmptyDescription);
+
+            // 생성 중인 기록이 있으면 완료나 실패로 바뀔 때까지 상태를 다시 읽는다.
+            StartPendingRefresh();
 
             if (records.Count == 0)
             {
@@ -151,11 +188,13 @@ public class ReportHistoryController : MonoBehaviour
 			return records;
 		}
 
+		DateTimeOffset now = DateTimeOffset.Now;
+
 		foreach (string directory in Directory.GetDirectories(ReportsRootPath))
 		{
 			string reportPath = Path.Combine(
 				directory,
-				"report.json"
+				ReportGenerationFiles.ReportFileName
 			);
 
 			string resultPath = Path.Combine(
@@ -163,8 +202,16 @@ public class ReportHistoryController : MonoBehaviour
 				"section_results.json"
 			);
 
-			// 두 파일이 모두 있는 생성 완료 기록만 표시한다.
-			if (!File.Exists(reportPath) || !File.Exists(resultPath))
+			if (!File.Exists(resultPath))
+			{
+				continue;
+			}
+
+			ReportGenerationStatus status =
+				ReportGenerationFiles.ReadStatus(directory, now);
+
+			// 보고서를 요청하지 않은 기록(구간 연습, 생성 꺼짐, 이전 기록)은 표시하지 않는다.
+			if (status == ReportGenerationStatus.NotRequested)
 			{
 				continue;
 			}
@@ -222,7 +269,9 @@ public class ReportHistoryController : MonoBehaviour
 				{
 					recordedAt = recordedAt,
 					score = score,
-					reportPath = reportPath
+					sessionDirectory = directory,
+					reportPath = reportPath,
+					status = status
 				});
 			}
 			catch (Exception exception) when (
@@ -280,8 +329,26 @@ public class ReportHistoryController : MonoBehaviour
 
 	private void ShowReport(HistoryRecord record)
 	{
+		selectedRecord = record;
+
 		reportContent.SetActive(false);
 		emptyBox.SetActive(true);
+
+		// 보고서가 없는 기록은 EmptyBox에 생성 상태를 안내한다.
+		if (record.status == ReportGenerationStatus.Pending)
+		{
+			SetEmptyMessage(PendingTitle, PendingDescription);
+			return;
+		}
+
+		if (record.status == ReportGenerationStatus.Failed)
+		{
+			SetEmptyMessage(FailedTitle, FailedDescription);
+			LogGenerationFailure(record);
+			return;
+		}
+
+		SetEmptyMessage(defaultEmptyTitle, defaultEmptyDescription);
 
 		if (!reportFileLoader.LoadReportFromPath(record.reportPath))
 		{
@@ -299,8 +366,162 @@ public class ReportHistoryController : MonoBehaviour
 		scoreValueText.text = $"{record.score}점";
 	}
 
+	private void BindItem(ReportItemUI item, HistoryRecord record)
+	{
+		string date = record.recordedAt.ToString(
+			"yyyy.MM.dd",
+			CultureInfo.InvariantCulture
+		);
+
+		item.Bind(
+			date,
+			record.attemptNumber,
+			record.score,
+			() => ShowReport(record),
+			GetStatusLabel(record.status)
+		);
+	}
+
+	private static string GetStatusLabel(ReportGenerationStatus status)
+	{
+		switch (status)
+		{
+			case ReportGenerationStatus.Pending:
+				return PendingStatusLabel;
+
+			case ReportGenerationStatus.Failed:
+				return FailedStatusLabel;
+
+			default:
+				return null;
+		}
+	}
+
+	private void SetEmptyMessage(string title, string description)
+	{
+		if (emptyTitleText != null && title != null)
+		{
+			emptyTitleText.text = title;
+		}
+
+		if (emptyDescriptionText != null && description != null)
+		{
+			emptyDescriptionText.text = description;
+		}
+	}
+
+	private void LogGenerationFailure(HistoryRecord record)
+	{
+		if (ReportGenerationFiles.TryReadError(
+			record.sessionDirectory,
+			out ReportErrorFile errorFile
+		))
+		{
+			Debug.LogWarning(
+				$"[ReportHistory] 보고서 생성 실패: {record.sessionDirectory}\n" +
+				$"{errorFile.stage}: {errorFile.message}",
+				this
+			);
+
+			return;
+		}
+
+		Debug.LogWarning(
+			$"[ReportHistory] 제한 시간 안에 보고서 결과가 기록되지 않았습니다: {record.sessionDirectory}",
+			this
+		);
+	}
+
+	private void StartPendingRefresh()
+	{
+		StopPendingRefresh();
+
+		if (HasPendingRecord())
+		{
+			pendingRefreshCoroutine = StartCoroutine(RefreshPendingRecords());
+		}
+	}
+
+	private void StopPendingRefresh()
+	{
+		if (pendingRefreshCoroutine == null)
+		{
+			return;
+		}
+
+		StopCoroutine(pendingRefreshCoroutine);
+		pendingRefreshCoroutine = null;
+	}
+
+	// 생성 중인 기록은 완료되거나, 제한 시간이 지나 실패로 바뀌면 끝난다.
+	private IEnumerator RefreshPendingRecords()
+	{
+		while (HasPendingRecord())
+		{
+			yield return new WaitForSecondsRealtime(PendingRefreshIntervalSeconds);
+
+			UpdatePendingRecords();
+		}
+
+		pendingRefreshCoroutine = null;
+	}
+
+	private bool HasPendingRecord()
+	{
+		foreach (HistoryRecord record in itemsByRecord.Keys)
+		{
+			if (record.status == ReportGenerationStatus.Pending)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	// 목록을 다시 만들지 않고 바뀐 기록만 갱신해 현재 선택과 탐색 상태를 유지한다.
+	private void UpdatePendingRecords()
+	{
+		DateTimeOffset now = DateTimeOffset.Now;
+		var changedRecords = new List<HistoryRecord>();
+
+		foreach (HistoryRecord record in itemsByRecord.Keys)
+		{
+			if (record.status != ReportGenerationStatus.Pending)
+			{
+				continue;
+			}
+
+			ReportGenerationStatus currentStatus =
+				ReportGenerationFiles.ReadStatus(record.sessionDirectory, now);
+
+			if (currentStatus != record.status)
+			{
+				record.status = currentStatus;
+				changedRecords.Add(record);
+			}
+		}
+
+		foreach (HistoryRecord record in changedRecords)
+		{
+			ReportItemUI item = itemsByRecord[record];
+
+			if (item != null)
+			{
+				BindItem(item, record);
+			}
+
+			if (record == selectedRecord)
+			{
+				ShowReport(record);
+			}
+		}
+	}
+
 	private void ClearCreatedItems()
 	{
+		StopPendingRefresh();
+
 		foreach (ReportItemUI item in createdItems)
 		{
 			if (item != null)
@@ -311,6 +532,8 @@ public class ReportHistoryController : MonoBehaviour
 		}
 
 		createdItems.Clear();
+		itemsByRecord.Clear();
+		selectedRecord = null;
 	}
 
 	private void ConfigureNavigation()

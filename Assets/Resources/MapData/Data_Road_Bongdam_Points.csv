@@ -645,4 +645,4 @@ index,name,layer,pos_x,pos_y,pos_z,rotation,value,tilt,height,thickness,style,wi
 645,Point,Point,486885.9698914689,1980101.73138664,13,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 646,Point,Point,553378.0169747303,1979029.3676064706,14,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 647,Point,Point,566344.9411126684,2010517.867696904,15,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-648,Text,Data,463500,1973000,0,0,"start, hill_0, hill_1, hill_2 | left, left, signal, right, T_Test_0, T_Test_1, T_Test_2, T_Test_3 | left, signal, left, fast_0, fast_1, end",,300,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+648,Text,Data,463500,1973000,0,0,"start, hill_0, hill_1, hill_2 | left, left | on_emergency, signal, right, T_Test_0, T_Test_1, T_Test_2, T_Test_3 | left, signal, left, fast_0, fast_1, end",,300,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,

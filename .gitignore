@@ -101,3 +101,7 @@ InitTestScene*.unity*
 # Local source and work folders
 /ArtSource/
 /work/
+
+# PC-local settings with secrets (e.g. the OpenAI API key of ReportPipelineSettings)
+/[Aa]ssets/[Ll]ocal[Ss]ettings/
+/[Aa]ssets/[Ll]ocal[Ss]ettings.meta
